@@ -13,6 +13,7 @@ from selenium.webdriver.support import expected_conditions as EC
 
 from errors import (UrlError, LoginError, ParsingError, CalculationError,
                     NoSuchElementException, TimeoutException, IntegrityError)
+from db import db
 from models import User, ChargeCategory, ChargeType, BillingCycle, Charge
 import settings
 
@@ -25,9 +26,6 @@ ch.setLevel(logging.DEBUG)
 formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 ch.setFormatter(formatter)
 logger.addHandler(ch)
-
-DATABASE = 'att_bill.db'
-db = pw.SqliteDatabase(DATABASE)
 
 
 def create_tables_if_not_exist():
@@ -509,6 +507,7 @@ class AttBillSpliter(object):
             self.browser.switch_to.window(current_window)
         self.browser.quit()
         logger.info('Browser closed.')
+
 
 if __name__ == '__main__':
     create_tables_if_not_exist()
