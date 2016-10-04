@@ -1,5 +1,11 @@
+# -*- coding:utf-8 -*-
+"""Database and Data models for att-bill-splitter."""
+
 from peewee import *
-from db import db
+from peewee import SqliteDatabase
+
+DATABASE = 'att_bill.db'
+db = SqliteDatabase(DATABASE)
 
 
 class BaseModel(Model):

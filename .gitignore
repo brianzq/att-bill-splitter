@@ -2,6 +2,15 @@
 *.pyc
 
 #
-venv/
-trash/
+*.db
 
+#
+trash/
+venv/
+
+#
+build/
+dist/
+*.egg-info
+*.eggs
+.cache/

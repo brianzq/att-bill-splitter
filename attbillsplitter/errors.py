@@ -1,13 +1,11 @@
 # -*- coding:utf-8 -*-
+"""Exceptions used in main module."""
 
-"""Custom Exceptions used in main module."""
-
+from peewee import IntegrityError
 from selenium.common.exceptions import (
     NoSuchElementException,
     TimeoutException
 )
-
-from peewee import IntegrityError
 
 
 class BaseError(Exception):

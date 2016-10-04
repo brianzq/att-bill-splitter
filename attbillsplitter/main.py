@@ -1,5 +1,8 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding:utf-8 -*-
+"""Service that parses the AT&T bill, splits wireless charges among users and
+persists data in database.
+"""
 
 import logging
 import re
@@ -11,11 +14,14 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
-from errors import (UrlError, LoginError, ParsingError, CalculationError,
-                    NoSuchElementException, TimeoutException, IntegrityError)
-from db import db
-from models import User, ChargeCategory, ChargeType, BillingCycle, Charge
-import settings
+from attbillsplitter.errors import (
+    UrlError, LoginError, ParsingError, CalculationError,
+    NoSuchElementException, TimeoutException, IntegrityError
+)
+from attbillsplitter.models import (
+    User, ChargeCategory, ChargeType, BillingCycle, Charge, db
+)
+import attbillsplitter.settings as settings
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -509,7 +515,8 @@ class AttBillSpliter(object):
         logger.info('Browser closed.')
 
 
-if __name__ == '__main__':
+def run_split_bill():
+    """Worker for parsing the website and splitting the bill."""
     create_tables_if_not_exist()
     bill_spliter = AttBillSpliter(settings.username, settings.password,
                                   settings.phonebook)
