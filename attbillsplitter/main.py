@@ -69,7 +69,6 @@ class AttBillSpliter(object):
     def __init__(self, username, password):
         self.username = username
         self.password = password
-        self.users = []
         self.browser = webdriver.Chrome()
 
     def try_click_no_on_popup(self):
@@ -133,10 +132,17 @@ class AttBillSpliter(object):
     def parse_user_info(self):
         """Parse the bill to find name and number for each line and create
         users. Account holder should be the first entry.
+
+        :returns: list of user objects
+        :rtype: list
         """
+        users = []
         number_elems = self.browser.find_elements_by_xpath(
             "//div[contains(text(), 'Total for')]"
         )
+        if not number_elems:
+            # just to be safe...
+            self.try_click_no_on_popup()
         for number_elem in number_elems:
             m = re.search('Total for ([0-9]{3}-[0-9]{3}-[0-9]{4})',
                           number_elem.text)
@@ -149,7 +155,8 @@ class AttBillSpliter(object):
             m = re.search('(.+) {}'.format(number), name_elem.text)
             name = m.group(1)
             user, _ = User.get_or_create(name=name, number=number)
-            self.users.append(user)
+            users.append(user)
+        return users
 
     def split_previous_bill(self):
         """All parsing and wireless bill splitting happen here.
@@ -173,9 +180,9 @@ class AttBillSpliter(object):
 
         billing_cycle = BillingCycle.create(name=billing_cycle_name)
         # parse user name and number
-        self.parse_user_info()
+        users = self.parse_user_info()
         # set account holder
-        account_holder = self.users[0]
+        account_holder = users[0]
         # ---------------------------------------------------------------------
         # U-verse tv
         # ---------------------------------------------------------------------
@@ -378,7 +385,7 @@ class AttBillSpliter(object):
                 )
 
         # iterate regular users
-        for user in self.users[1:]:
+        for user in users[1:]:
             charge_total = 0
             try:
                 charge_elems = self.browser.find_elements_by_xpath(
@@ -433,7 +440,7 @@ class AttBillSpliter(object):
         act_m_share = (w_act_m - w_act_m_disc) / nlines
         wireless_total = 0
 
-        for user in self.users:
+        for user in users:
             # ChargeType
             charge_type, _ = ChargeType.get_or_create(
                 type='wireless-acount-monthly-charges-share',
@@ -516,6 +523,7 @@ class AttBillSpliter(object):
                         (By.XPATH, "//h2[contains(text(), 'Account Details')]")
                     )
                 )
+                logger.info('No popup window detected.')
             except TimeoutException:
                 # most likely there is a popup window
                 self.try_click_no_on_popup()
