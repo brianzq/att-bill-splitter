@@ -10,6 +10,12 @@ twilio_auth_token = 'your_twilio_auth_token'
 username = 'your_att_user_name'
 password = 'your_att_password'
 
+# chromedriver path (optional)
+# suggested fix for
+# selenium.common.exceptions.WebDriverException:
+# Message: 'chromedriver' executable needs to be in PATH.
+chromedriver = "/your/path/to/chromedriver"
+
 # config
 # number of seconds to wait for the billing page to load
 # increase this number if the internet is slow

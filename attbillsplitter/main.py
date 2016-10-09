@@ -5,6 +5,7 @@ persists data in database.
 """
 
 import logging
+import os
 import re
 import sys
 import peewee as pw
@@ -66,10 +67,14 @@ class AttBillSpliter(object):
         'myworld?actionType=ViewBillHistory'
     )
 
-    def __init__(self, username, password):
+    def __init__(self, username, password, chromedriver = None):
         self.username = username
         self.password = password
-        self.browser = webdriver.Chrome()
+        if chromedriver is not None:
+            os.environ["webdriver.chrome.driver"] = chromedriver
+            self.browser = webdriver.Chrome(chromedriver)
+        else:
+            self.browser = webdriver.Chrome()
 
     def try_click_no_on_popup(self):
         """Try to click on 'No' button on a page.
@@ -544,7 +549,11 @@ class AttBillSpliter(object):
 def run_split_bill():
     """Worker for parsing the website and splitting the bill."""
     create_tables_if_not_exist()
-    bill_splitter = AttBillSpliter(settings.username, settings.password)
+    bill_splitter = AttBillSpliter(
+        settings.username,
+        settings.password,
+        settings.chromedriver,
+    )
     lags = [int(lag) for lag in sys.argv[1:]]
     bill_splitter.run(lags)
     db.close()
