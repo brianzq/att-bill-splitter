@@ -65,16 +65,10 @@ class AttBillSpliter(object):
         'https://www.att.com/olam/passthroughAction.'
         'myworld?actionType=ViewBillHistory'
     )
-    w_act_m = 130  # monthly charge for wireless account
 
-    def __init__(self, username, password, phonebook):
+    def __init__(self, username, password):
         self.username = username
         self.password = password
-        self.phonebook = phonebook
-        self.account_holder, _ = User.get_or_create(
-            name=settings.phonebook[0][0],
-            number=settings.phonebook[0][1]
-        )
         self.browser = webdriver.Chrome()
 
     def try_click_no_on_popup(self):
@@ -135,6 +129,38 @@ class AttBillSpliter(object):
             )
         logger.info('landed at history billings page.')
 
+    def parse_user_info(self):
+        """Parse the bill to find name and number for each line and create
+        users. Account holder should be the first entry.
+
+        :returns: list of user objects
+        :rtype: list
+        """
+        users = []
+        number_elems = self.browser.find_elements_by_xpath(
+            "//div[contains(text(), 'Total for')]"
+        )
+        if not number_elems:
+            # just to be safe...
+            self.try_click_no_on_popup()
+            logger.info('Popup window detected in last minute.')
+        else:
+            logger.info('Expect no more popup window.')
+        for number_elem in number_elems:
+            m = re.search('Total for ([0-9]{3}-[0-9]{3}-[0-9]{4})',
+                          number_elem.text)
+            number = m.group(1)
+            # get name for number
+            name_elem = self.browser.find_element_by_xpath(
+                "//div[@class='accRow bold MarTop10' and "
+                "contains(text(), '{}')]".format(number)
+            )
+            m = re.search('(.+) {}'.format(number), name_elem.text)
+            name = m.group(1)
+            user, _ = User.get_or_create(name=name, number=number)
+            users.append(user)
+        return users
+
     def split_previous_bill(self):
         """All parsing and wireless bill splitting happen here.
 
@@ -151,10 +177,15 @@ class AttBillSpliter(object):
         if BillingCycle.select().where(
             BillingCycle.name == billing_cycle_name
         ):
-            logger.warning('Billing Cycle %s already processed.')
+            logger.warning('Billing Cycle %s already processed.',
+                           billing_cycle_name)
             return
 
         billing_cycle = BillingCycle.create(name=billing_cycle_name)
+        # parse user name and number
+        users = self.parse_user_info()
+        # set account holder
+        account_holder = users[0]
         # ---------------------------------------------------------------------
         # U-verse tv
         # ---------------------------------------------------------------------
@@ -168,17 +199,14 @@ class AttBillSpliter(object):
             "div[@class='Padbot5 topDotBorder MarLeft12 MarRight90' and "
             "descendant::div[contains(text(), 'Total U-verse TV Charges')]]"
         )
-        try:
-            charge_elems = self.browser.find_elements_by_xpath(
-                "//div[(starts-with(@class, 'accSummary') or "
-                "@id='UTV-monthly') and preceding-sibling::{} and "
-                "following-sibling::{}]".format(
-                    beginning_div_xpath, end_div_xpath
-                )
+        charge_elems = self.browser.find_elements_by_xpath(
+            "//div[(starts-with(@class, 'accSummary') or "
+            "@id='UTV-monthly') and preceding-sibling::{} and "
+            "following-sibling::{}]".format(
+                beginning_div_xpath, end_div_xpath
             )
-        except NoSuchElementException:
-            logger.info('No U-verse TV Charge Elements Found, skipped.')
-        else:
+        )
+        if charge_elems:
             utv_charge_category, _ = ChargeCategory.get_or_create(
                 category='utv',
                 text='U-verse TV'
@@ -204,7 +232,7 @@ class AttBillSpliter(object):
                 # Charge
                 try:
                     new_charge = Charge(
-                        user=self.account_holder,
+                        user=account_holder,
                         charge_type=charge_type,
                         billing_cycle=billing_cycle,
                         amount=charge_total
@@ -215,6 +243,8 @@ class AttBillSpliter(object):
                         'Trying to write duplicate charge record!\n%s',
                         new_charge.__dict__
                     )
+        else:
+            logger.info('No U-verse TV Charge Elements Found, skipped.')
 
         # ---------------------------------------------------------------------
         # U-verse Internet
@@ -230,17 +260,14 @@ class AttBillSpliter(object):
             "descendant::div[contains(text(), "
             "'Total U-verse Internet Charges')]]"
         )
-        try:
-            charge_elems = self.browser.find_elements_by_xpath(
-                "//div[(starts-with(@class, 'accSummary') or "
-                "@id='UVI-monthly') and preceding-sibling::{} and "
-                "following-sibling::{}]".format(
-                    beginning_div_xpath, end_div_xpath
-                )
+        charge_elems = self.browser.find_elements_by_xpath(
+            "//div[(starts-with(@class, 'accSummary') or "
+            "@id='UVI-monthly') and preceding-sibling::{} and "
+            "following-sibling::{}]".format(
+                beginning_div_xpath, end_div_xpath
             )
-        except NoSuchElementException:
-            logger.info('No U-verse Internet Charge Elements Found, skipped.')
-        else:
+        )
+        if charge_elems:
             uvi_charge_category, _ = ChargeCategory.get_or_create(
                 category='uvi',
                 text='U-verse Internet'
@@ -266,7 +293,7 @@ class AttBillSpliter(object):
                 # Charge
                 try:
                     new_charge = Charge(
-                        user=self.account_holder,
+                        user=account_holder,
                         charge_type=charge_type,
                         billing_cycle=billing_cycle,
                         amount=charge_total
@@ -277,11 +304,14 @@ class AttBillSpliter(object):
                         'Trying to write duplicate charge record!\n%s',
                         new_charge.__dict__
                     )
+        else:
+            logger.info('No U-verse Internet Charge Elements Found, skipped.')
 
         # ---------------------------------------------------------------------
         # Wireless
         # ---------------------------------------------------------------------
         # beginning div
+        charged_users = users[:1]  # users who have a positive balance
         beginning_div_xpath = (
             "div[@class='MarLeft12 MarRight90 ' and "
             "descendant::div[contains(text(), '{name} {num}')]]"
@@ -293,86 +323,79 @@ class AttBillSpliter(object):
             "descendant::div[contains(text(), 'Total for {num}')]]"
         )
         # first parse charges under account holder
-        try:
-            charge_elems = self.browser.find_elements_by_xpath(
-                "//div[starts-with(@class, 'accSummary') and "
-                "preceding-sibling::{} and following-sibling::{}]".format(
-                    beginning_div_xpath.format(name=self.account_holder.name,
-                                               num=self.account_holder.number),
-                    end_div_xpath.format(num=self.account_holder.number)
-                )
+        charge_elems = self.browser.find_elements_by_xpath(
+            "//div[starts-with(@class, 'accSummary') and "
+            "preceding-sibling::{} and following-sibling::{}]".format(
+                beginning_div_xpath.format(name=account_holder.name,
+                                           num=account_holder.number),
+                end_div_xpath.format(num=account_holder.number)
             )
-        except NoSuchElementException:
-            raise ParsingError('No charges found for account holder.')
-        else:
+        )
+        if charge_elems:
             wireless_charge_category, _ = ChargeCategory.get_or_create(
                 category='wireless',
                 text='Wireless'
             )
-        w_act_m_disc = 0
-        for elem in charge_elems:
-            charge_type_text = elem.find_element_by_xpath("div[1]").text
-            offset = 0
-            if charge_type_text.startswith('Monthly Charges'):
-                charge_type_text = 'Monthly Charges'
-                # get account monthly charge and discount
+            for elem in charge_elems:
+                charge_type_text = elem.find_element_by_xpath("div[1]").text
+                offset = 0
+                if charge_type_text.startswith('Monthly Charges'):
+                    charge_type_text = 'Monthly Charges'
+                    # get account monthly charge and discount
+                    act_m_elem = elem.find_element_by_xpath("div[4]/div[1]")
+                    m = re.search('.*?\$([0-9.]+)', act_m_elem.text, re.DOTALL)
+                    w_act_m = float(m.group(1))
+
+                    m = re.search(
+                        'National Account Discount.*?\$([0-9.]+)',
+                        elem.text,
+                        flags=re.DOTALL
+                    )
+                    w_act_m_disc = float(m.group(1)) if m else 0
+                    offset = w_act_m - w_act_m_disc
                 m = re.search(
-                    'National Account Discount.*?\$([0-9.]+)',
+                    'Total {}.*?\$([0-9.]+)'.format(charge_type_text),
                     elem.text,
                     flags=re.DOTALL
                 )
-                if m:
-                    w_act_m_disc = float(m.group(1))
-                offset = self.w_act_m - w_act_m_disc
-            m = re.search(
-                'Total {}.*?\$([0-9.]+)'.format(charge_type_text),
-                elem.text,
-                flags=re.DOTALL
-            )
-            charge_total = float(m.group(1)) - offset
-            # save data to db
-            charge_type_name = slugify(charge_type_text)
-            # ChargeType
-            charge_type, _ = ChargeType.get_or_create(
-                type=charge_type_name,
-                text=charge_type_text,
-                charge_category=wireless_charge_category
-            )
-            # Charge
-            try:
-                new_charge = Charge(
-                    user=self.account_holder,
-                    charge_type=charge_type,
-                    billing_cycle=billing_cycle,
-                    amount=charge_total
+                charge_total = float(m.group(1)) - offset
+                # save data to db
+                charge_type_name = slugify(charge_type_text)
+                # ChargeType
+                charge_type, _ = ChargeType.get_or_create(
+                    type=charge_type_name,
+                    text=charge_type_text,
+                    charge_category=wireless_charge_category
                 )
-                new_charge.save()
-            except IntegrityError:
-                logger.warning(
-                    'Trying to write duplicate charge record!\n%s',
-                    new_charge.__dict__
-                )
+                # Charge
+                try:
+                    new_charge = Charge(
+                        user=account_holder,
+                        charge_type=charge_type,
+                        billing_cycle=billing_cycle,
+                        amount=charge_total
+                    )
+                    new_charge.save()
+                except IntegrityError:
+                    logger.warning(
+                        'Trying to write duplicate charge record!\n%s',
+                        new_charge.__dict__
+                    )
+        else:
+            raise ParsingError('No charges found for account holder.')
 
         # iterate regular users
-        users = set([self.account_holder])
-        for name, number in settings.phonebook:
-            if number == self.account_holder.number:
-                continue
-
+        for user in users[1:]:
             charge_total = 0
-            try:
-                charge_elems = self.browser.find_elements_by_xpath(
-                    "//div[starts-with(@class, 'accSummary') and "
-                    "preceding-sibling::{} and following-sibling::{}]".format(
-                        beginning_div_xpath.format(name=name, num=number),
-                        end_div_xpath.format(num=number)
-                    )
+            charge_elems = self.browser.find_elements_by_xpath(
+                "//div[starts-with(@class, 'accSummary') and "
+                "preceding-sibling::{} and following-sibling::{}]".format(
+                    beginning_div_xpath.format(
+                        name=user.name, num=user.number
+                    ),
+                    end_div_xpath.format(num=user.number)
                 )
-            except NoSuchElementException:
-                raise ParsingError('No charges found for user %s (%s)',
-                                   name, number)
-            else:
-                user, _ = User.get_or_create(name=name, number=number)
+            )
             for elem in charge_elems:
                 charge_type_text = elem.find_element_by_xpath("div[1]").text
                 if charge_type_text.startswith('Monthly Charges'):
@@ -406,13 +429,14 @@ class AttBillSpliter(object):
                         new_charge.__dict__
                     )
             if charge_total > 0:
-                users.add(user)
+                charged_users.append(user)
 
         # update share of account monthly charges for each line
         # also calculate total wireless charges (for verification later)
-        act_m_share = (self.w_act_m - w_act_m_disc) / len(users)
+        act_m_share = (w_act_m - w_act_m_disc) / len(charged_users)
         wireless_total = 0
-        for user in users:
+
+        for user in charged_users:
             # ChargeType
             charge_type, _ = ChargeType.get_or_create(
                 type='wireless-acount-monthly-charges-share',
@@ -495,6 +519,7 @@ class AttBillSpliter(object):
                         (By.XPATH, "//h2[contains(text(), 'Account Details')]")
                     )
                 )
+                logger.info('No popup window detected.')
             except TimeoutException:
                 # most likely there is a popup window
                 self.try_click_no_on_popup()
@@ -512,15 +537,14 @@ class AttBillSpliter(object):
                 logger.info('Billing detail page sanity check passed.')
             self.split_previous_bill()
             self.browser.switch_to.window(current_window)
-        self.browser.quit()
+        # self.browser.quit()
         logger.info('Browser closed.')
 
 
 def run_split_bill():
     """Worker for parsing the website and splitting the bill."""
     create_tables_if_not_exist()
-    bill_spliter = AttBillSpliter(settings.username, settings.password,
-                                  settings.phonebook)
+    bill_splitter = AttBillSpliter(settings.username, settings.password)
     lags = [int(lag) for lag in sys.argv[1:]]
-    bill_spliter.run(lags)
+    bill_splitter.run(lags)
     db.close()
