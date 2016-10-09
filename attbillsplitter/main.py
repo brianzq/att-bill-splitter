@@ -309,6 +309,7 @@ class AttBillSpliter(object):
                 category='wireless',
                 text='Wireless'
             )
+        w_act_m_disc = 0
         for elem in charge_elems:
             charge_type_text = elem.find_element_by_xpath("div[1]").text
             offset = 0
