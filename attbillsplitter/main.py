@@ -67,7 +67,7 @@ class AttBillSpliter(object):
         'myworld?actionType=ViewBillHistory'
     )
 
-    def __init__(self, username, password, chromedriver = None):
+    def __init__(self, username, password, chromedriver=None):
         self.username = username
         self.password = password
         if chromedriver is not None:
