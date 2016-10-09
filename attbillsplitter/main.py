@@ -65,16 +65,11 @@ class AttBillSpliter(object):
         'https://www.att.com/olam/passthroughAction.'
         'myworld?actionType=ViewBillHistory'
     )
-    w_act_m = 130  # monthly charge for wireless account
 
-    def __init__(self, username, password, phonebook):
+    def __init__(self, username, password):
         self.username = username
         self.password = password
-        self.phonebook = phonebook
-        self.account_holder, _ = User.get_or_create(
-            name=settings.phonebook[0][0],
-            number=settings.phonebook[0][1]
-        )
+        self.users = []
         self.browser = webdriver.Chrome()
 
     def try_click_no_on_popup(self):
@@ -135,6 +130,27 @@ class AttBillSpliter(object):
             )
         logger.info('landed at history billings page.')
 
+    def parse_user_info(self):
+        """Parse the bill to find name and number for each line and create
+        users. Account holder should be the first entry.
+        """
+        number_elems = self.browser.find_elements_by_xpath(
+            "//div[contains(text(), 'Total for')]"
+        )
+        for number_elem in number_elems:
+            m = re.search('Total for ([0-9]{3}-[0-9]{3}-[0-9]{4})',
+                          number_elem.text)
+            number = m.group(1)
+            # get name for number
+            name_elem = self.browser.find_element_by_xpath(
+                "//div[@class='accRow bold MarTop10' and "
+                "contains(text(), '{}')]".format(number)
+            )
+            m = re.search('(.+) {}'.format(number), name_elem.text)
+            name = m.group(1)
+            user, _ = User.get_or_create(name=name, number=number)
+            self.users.append(user)
+
     def split_previous_bill(self):
         """All parsing and wireless bill splitting happen here.
 
@@ -151,10 +167,15 @@ class AttBillSpliter(object):
         if BillingCycle.select().where(
             BillingCycle.name == billing_cycle_name
         ):
-            logger.warning('Billing Cycle %s already processed.')
+            logger.warning('Billing Cycle %s already processed.',
+                           billing_cycle_name)
             return
 
         billing_cycle = BillingCycle.create(name=billing_cycle_name)
+        # parse user name and number
+        self.parse_user_info()
+        # set account holder
+        account_holder = self.users[0]
         # ---------------------------------------------------------------------
         # U-verse tv
         # ---------------------------------------------------------------------
@@ -204,7 +225,7 @@ class AttBillSpliter(object):
                 # Charge
                 try:
                     new_charge = Charge(
-                        user=self.account_holder,
+                        user=account_holder,
                         charge_type=charge_type,
                         billing_cycle=billing_cycle,
                         amount=charge_total
@@ -266,7 +287,7 @@ class AttBillSpliter(object):
                 # Charge
                 try:
                     new_charge = Charge(
-                        user=self.account_holder,
+                        user=account_holder,
                         charge_type=charge_type,
                         billing_cycle=billing_cycle,
                         amount=charge_total
@@ -282,6 +303,7 @@ class AttBillSpliter(object):
         # Wireless
         # ---------------------------------------------------------------------
         # beginning div
+        nlines = 1  # used to calculate shared monthly charge
         beginning_div_xpath = (
             "div[@class='MarLeft12 MarRight90 ' and "
             "descendant::div[contains(text(), '{name} {num}')]]"
@@ -297,9 +319,9 @@ class AttBillSpliter(object):
             charge_elems = self.browser.find_elements_by_xpath(
                 "//div[starts-with(@class, 'accSummary') and "
                 "preceding-sibling::{} and following-sibling::{}]".format(
-                    beginning_div_xpath.format(name=self.account_holder.name,
-                                               num=self.account_holder.number),
-                    end_div_xpath.format(num=self.account_holder.number)
+                    beginning_div_xpath.format(name=account_holder.name,
+                                               num=account_holder.number),
+                    end_div_xpath.format(num=account_holder.number)
                 )
             )
         except NoSuchElementException:
@@ -309,21 +331,23 @@ class AttBillSpliter(object):
                 category='wireless',
                 text='Wireless'
             )
-        w_act_m_disc = 0
         for elem in charge_elems:
             charge_type_text = elem.find_element_by_xpath("div[1]").text
             offset = 0
             if charge_type_text.startswith('Monthly Charges'):
                 charge_type_text = 'Monthly Charges'
                 # get account monthly charge and discount
+                act_m_elem = elem.find_element_by_xpath("div[4]/div[1]")
+                m = re.search('.*?\$([0-9.]+)', act_m_elem.text, re.DOTALL)
+                w_act_m = float(m.group(1))
+
                 m = re.search(
                     'National Account Discount.*?\$([0-9.]+)',
                     elem.text,
                     flags=re.DOTALL
                 )
-                if m:
-                    w_act_m_disc = float(m.group(1))
-                offset = self.w_act_m - w_act_m_disc
+                w_act_m_disc = float(m.group(1)) if m else 0
+                offset = w_act_m - w_act_m_disc
             m = re.search(
                 'Total {}.*?\$([0-9.]+)'.format(charge_type_text),
                 elem.text,
@@ -341,7 +365,7 @@ class AttBillSpliter(object):
             # Charge
             try:
                 new_charge = Charge(
-                    user=self.account_holder,
+                    user=account_holder,
                     charge_type=charge_type,
                     billing_cycle=billing_cycle,
                     amount=charge_total
@@ -354,25 +378,21 @@ class AttBillSpliter(object):
                 )
 
         # iterate regular users
-        users = set([self.account_holder])
-        for name, number in settings.phonebook:
-            if number == self.account_holder.number:
-                continue
-
+        for user in self.users[1:]:
             charge_total = 0
             try:
                 charge_elems = self.browser.find_elements_by_xpath(
                     "//div[starts-with(@class, 'accSummary') and "
                     "preceding-sibling::{} and following-sibling::{}]".format(
-                        beginning_div_xpath.format(name=name, num=number),
-                        end_div_xpath.format(num=number)
+                        beginning_div_xpath.format(
+                            name=user.name, num=user.number
+                        ),
+                        end_div_xpath.format(num=user.number)
                     )
                 )
             except NoSuchElementException:
                 raise ParsingError('No charges found for user %s (%s)',
-                                   name, number)
-            else:
-                user, _ = User.get_or_create(name=name, number=number)
+                                   user.name, user.number)
             for elem in charge_elems:
                 charge_type_text = elem.find_element_by_xpath("div[1]").text
                 if charge_type_text.startswith('Monthly Charges'):
@@ -406,13 +426,14 @@ class AttBillSpliter(object):
                         new_charge.__dict__
                     )
             if charge_total > 0:
-                users.add(user)
+                nlines += 1
 
         # update share of account monthly charges for each line
         # also calculate total wireless charges (for verification later)
-        act_m_share = (self.w_act_m - w_act_m_disc) / len(users)
+        act_m_share = (w_act_m - w_act_m_disc) / nlines
         wireless_total = 0
-        for user in users:
+
+        for user in self.users:
             # ChargeType
             charge_type, _ = ChargeType.get_or_create(
                 type='wireless-acount-monthly-charges-share',
@@ -512,15 +533,14 @@ class AttBillSpliter(object):
                 logger.info('Billing detail page sanity check passed.')
             self.split_previous_bill()
             self.browser.switch_to.window(current_window)
-        self.browser.quit()
+        # self.browser.quit()
         logger.info('Browser closed.')
 
 
 def run_split_bill():
     """Worker for parsing the website and splitting the bill."""
     create_tables_if_not_exist()
-    bill_spliter = AttBillSpliter(settings.username, settings.password,
-                                  settings.phonebook)
+    bill_splitter = AttBillSpliter(settings.username, settings.password)
     lags = [int(lag) for lag in sys.argv[1:]]
-    bill_spliter.run(lags)
+    bill_splitter.run(lags)
     db.close()
