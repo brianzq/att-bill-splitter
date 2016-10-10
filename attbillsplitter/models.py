@@ -39,6 +39,8 @@ class ChargeType(BaseModel):
 
 class BillingCycle(BaseModel):
     name = CharField(unique=True)
+    start_date = DateField(unique=True)
+    end_date = DateField(unique=True)
     created_at = DateTimeField(constraints=[SQL("DEFAULT (datetime('now'))")])
 
 

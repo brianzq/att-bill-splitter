@@ -4,11 +4,13 @@
 persists data in database.
 """
 
+import datetime as dt
 import logging
 import os
 import re
 import sys
 import peewee as pw
+import configparser
 from slugify import slugify
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -16,13 +18,13 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
 from attbillsplitter.errors import (
-    UrlError, LoginError, ParsingError, CalculationError,
-    NoSuchElementException, TimeoutException, IntegrityError
+    UrlError, ConfigError, LoginError, ParsingError, CalculationError,
+    NoSuchElementException, TimeoutException, IntegrityError,
+    WebDriverException
 )
 from attbillsplitter.models import (
     User, ChargeCategory, ChargeType, BillingCycle, Charge, db
 )
-import attbillsplitter.settings as settings
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -51,6 +53,23 @@ def create_tables_if_not_exist():
             model.create_table()
 
 
+def get_start_end_date(billing_cycle_name):
+    """Get start date and end date for a billing cycle name using regex.
+
+    :param billing_cycle_name: name of billing cycle in format of
+        'Mar 15 - Apr 14, 2016'
+    :type billing_cycle_name: str
+    :returns: a tuple of start date (datetime.date) and end date
+    :rtype: tuple
+    """
+    m = re.search('(\w+ \d+) - (\w+ \d+), (\d{4})', billing_cycle_name)
+    start_date_str = '{}, {}'.format(m.group(1), m.group(3))
+    end_date_str = '{}, {}'.format(m.group(2), m.group(3))
+    start_date = dt.datetime.strptime(start_date_str, '%b %d, %Y').date()
+    end_date = dt.datetime.strptime(end_date_str, '%b %d, %Y').date()
+    return (start_date, end_date)
+
+
 class AttBillSpliter(object):
     """Parse AT&T bill and split wireless charges among users.
 
@@ -67,14 +86,28 @@ class AttBillSpliter(object):
         'myworld?actionType=ViewBillHistory'
     )
 
-    def __init__(self, username, password, chromedriver=None):
+    def __init__(self, username, password, chromedriver, page_loading_wait_s):
         self.username = username
         self.password = password
-        if chromedriver is not None:
-            os.environ["webdriver.chrome.driver"] = chromedriver
-            self.browser = webdriver.Chrome(chromedriver)
-        else:
-            self.browser = webdriver.Chrome()
+        args = [chromedriver] if chromedriver else []
+        try:
+            self.browser = webdriver.Chrome(*args)
+        except WebDriverException:
+            if chromedriver:
+                msg = ("'chromedriver' executable not found in {}. "
+                       "Please double check the path you provided "
+                       "in config.ini".format(chromedriver))
+            else:
+                msg = ("You haven't specify path to your 'chromedriver' "
+                       "executable in config.ini. Make sure it's in your PATH "
+                       "or add the path in config.ini under [settings]")
+            raise ConfigError(msg) from None 
+        except:
+            msg = ('Something happened when tring to launch the '
+                   'Chrome browser. Make sure you have installed '
+                   'Chrome and retry.')
+            raise ConfigError(msg)
+        self.page_loading_wait_s = page_loading_wait_s
 
     def try_click_no_on_popup(self):
         """Try to click on 'No' button on a page.
@@ -87,7 +120,7 @@ class AttBillSpliter(object):
             self.browser.find_element_by_xpath(
                 "//a[contains(text(), 'No')]"
             ).click()
-            logging.info('Popup page skipped.')
+            logger.info('Popup page skipped.')
         except:
             pass
 
@@ -148,12 +181,15 @@ class AttBillSpliter(object):
         if not number_elems:
             # just to be safe...
             self.try_click_no_on_popup()
-            logger.info('Popup window detected in last minute.')
-        else:
-            logger.info('Expect no more popup window.')
         for number_elem in number_elems:
             m = re.search('Total for ([0-9]{3}-[0-9]{3}-[0-9]{4})',
                           number_elem.text)
+            # sometimes a survey window pops up a few seconds after the billing
+            # page has already been loaded. Because total charge for each line
+            # has to be in the billing page, if the regex fails, mostly likely
+            # it's due to a popup window. So we will try to click on No again.
+            if not m:
+                self.try_click_no_on_popup()
             number = m.group(1)
             # get name for number
             name_elem = self.browser.find_element_by_xpath(
@@ -186,7 +222,10 @@ class AttBillSpliter(object):
                            billing_cycle_name)
             return
 
-        billing_cycle = BillingCycle.create(name=billing_cycle_name)
+        start_date, end_date = get_start_end_date(billing_cycle_name)
+        billing_cycle = BillingCycle.create(name=billing_cycle_name,
+                                            start_date=start_date,
+                                            end_date=end_date)
         # parse user name and number
         users = self.parse_user_info()
         # set account holder
@@ -502,7 +541,7 @@ class AttBillSpliter(object):
         """
         self.login()
         self.go_to_history_bills()
-        wait = WebDriverWait(self.browser, settings.page_loading_wait_s)
+        wait = WebDriverWait(self.browser, self.page_loading_wait_s)
         previous_bill_elems = wait.until(
             EC.presence_of_all_elements_located(
                 (By.XPATH, "//td[@headers='view_bill']")
@@ -517,7 +556,6 @@ class AttBillSpliter(object):
             # billing page will be opened in a new window
             current_window = self.browser.current_window_handle
             self.browser.switch_to.window(self.browser.window_handles[-1])
-            wait = WebDriverWait(self.browser, settings.page_loading_wait_s)
             try:
                 wait.until(
                     EC.presence_of_element_located(
@@ -548,12 +586,33 @@ class AttBillSpliter(object):
 
 def run_split_bill():
     """Worker for parsing the website and splitting the bill."""
+    # first load config file
+    config = configparser.ConfigParser()
+    config_path = sys.argv[1]
+    if not config.read(config_path):
+        raise ConfigError('Config file not found.')
+
+    att_username = config['att']['username']
+    if att_username == 'your_att_username':
+        raise ConfigError('Please update your att username in config.ini')
+
+    att_password = config['att']['password']
+    if att_password == 'your_att_password':
+        raise ConfigError('Please update your att password in config.ini')
+
+    # create table if not exists
     create_tables_if_not_exist()
+    # split
     bill_splitter = AttBillSpliter(
-        settings.username,
-        settings.password,
-        settings.chromedriver,
+        username=att_username,
+        password=att_password,
+        chromedriver=config['settings'].get('chromedriver'),
+        page_loading_wait_s=int(config['settings']['page_loading_wait_s'])
     )
-    lags = [int(lag) for lag in sys.argv[1:]]
+    lags = [int(lag) for lag in sys.argv[2:]]
     bill_splitter.run(lags)
     db.close()
+
+
+if __name__ == '__main__':
+    run_split_bill()

@@ -4,11 +4,16 @@
 from peewee import IntegrityError
 from selenium.common.exceptions import (
     NoSuchElementException,
-    TimeoutException
+    TimeoutException,
+    WebDriverException
 )
 
 
 class BaseError(Exception):
+    pass
+
+
+class ConfigError(BaseError):
     pass
 
 
@@ -28,6 +33,6 @@ class CalculationError(BaseError):
     pass
 
 
-__all__ = ['NoSuchElementException', 'TimeoutException', 'BaseError',
-           'UrlError', 'LoginError', 'ParsingError', 'CalculationError',
-           'IntegrityError']
+__all__ = ['NoSuchElementException', 'TimeoutException', 'WebDriverException',
+           'ConfigError', 'UrlError', 'LoginError', 'ParsingError',
+           'CalculationError', 'IntegrityError']
