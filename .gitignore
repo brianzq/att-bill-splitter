@@ -3,6 +3,7 @@
 
 #
 *.db
+*.log
 
 #
 trash/
@@ -14,3 +15,6 @@ dist/
 *.egg-info
 *.eggs
 .cache/
+
+#
+config.ini

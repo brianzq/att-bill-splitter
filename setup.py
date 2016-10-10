@@ -13,8 +13,9 @@ setup(
     install_requires=[
         'peewee>=2.8.4',
         'python-slugify>=1.2.1',
-        'selenium>=2.53.6',
-        'Unidecode>=0.4.19'
+        'selenium>=2.40.0',
+        'Unidecode>=0.4.19',
+        'twilio>=5.6.0'
     ],
     packages=find_packages(),
     extras_require={
@@ -24,7 +25,10 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'run-split-bill=attbillsplitter.entrypoints:run_split_bill'
+            'run-split-bill=attbillsplitter.entrypoints:run_split_bill',
+            'run-print-summary=attbillsplitter.entrypoints:run_print_summary',
+            'run-print-details=attbillsplitter.entrypoints:run_print_details',
+            'run-notify-users=attbillsplitter.entrypoints:run_notify_users',
         ],
     },
     zip_safe=False

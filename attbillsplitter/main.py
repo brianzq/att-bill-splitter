@@ -23,7 +23,7 @@ from attbillsplitter.errors import (
     WebDriverException
 )
 from attbillsplitter.models import (
-    User, ChargeCategory, ChargeType, BillingCycle, Charge, db
+    User, ChargeCategory, ChargeType, BillingCycle, Charge, MonthlyBill, db
 )
 
 logger = logging.getLogger()
@@ -31,7 +31,7 @@ logger.setLevel(logging.INFO)
 # suppress logging for selenium
 logging.getLogger("selenium").setLevel(logging.WARNING)
 ch = logging.StreamHandler(sys.stdout)
-ch.setLevel(logging.DEBUG)
+ch.setLevel(logging.INFO)
 formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 ch.setFormatter(formatter)
 logger.addHandler(ch)
@@ -46,28 +46,61 @@ def create_tables_if_not_exist():
         - ChargeType
         - BillingCycle
         - Charge
+        - MonthlyBill
     """
     db.connect()
-    for model in (User, ChargeCategory, ChargeType, BillingCycle, Charge):
+    for model in (User, ChargeCategory, ChargeType, BillingCycle, Charge,
+                  MonthlyBill):
         if not model.table_exists():
             model.create_table()
 
 
-def get_start_end_date(billing_cycle_name):
+def get_start_end_date(bc_name):
     """Get start date and end date for a billing cycle name using regex.
 
-    :param billing_cycle_name: name of billing cycle in format of
+    :param bc_name: name of billing cycle in format of
         'Mar 15 - Apr 14, 2016'
-    :type billing_cycle_name: str
+    :type bc_name: str
     :returns: a tuple of start date (datetime.date) and end date
     :rtype: tuple
     """
-    m = re.search('(\w+ \d+) - (\w+ \d+), (\d{4})', billing_cycle_name)
+    m = re.search('(\w+ \d+) - (\w+ \d+), (\d{4})', bc_name)
     start_date_str = '{}, {}'.format(m.group(1), m.group(3))
     end_date_str = '{}, {}'.format(m.group(2), m.group(3))
     start_date = dt.datetime.strptime(start_date_str, '%b %d, %Y').date()
     end_date = dt.datetime.strptime(end_date_str, '%b %d, %Y').date()
     return (start_date, end_date)
+
+
+def aggregate_wireless_monthly(bc):
+    """Aggregate wireless charges among all lines.
+
+    :param bc: billing_cycle object
+    :type bc: BillingCycle
+    :returns: None
+    """
+    if MonthlyBill.select().where(MonthlyBill.billing_cycle == bc).exists():
+        logger.info('Charges already aggregated for billing cycle %s',
+                    bc.name)
+        return
+
+    query = (
+        User
+        .select(User,
+                pw.fn.SUM(Charge.amount).alias('total'))
+        .join(Charge)
+        .join(BillingCycle)
+        .switch(Charge)
+        .join(ChargeType)
+        .join(ChargeCategory)
+        .where(BillingCycle.id == bc.id,
+               ChargeCategory.category == 'wireless')
+        .group_by(User, BillingCycle)
+        .naive()
+    )
+    results = query.execute()
+    for user in results:
+        MonthlyBill.create(user=user, billing_cycle=bc, total=user.total)
 
 
 class AttBillSpliter(object):
@@ -178,18 +211,9 @@ class AttBillSpliter(object):
         number_elems = self.browser.find_elements_by_xpath(
             "//div[contains(text(), 'Total for')]"
         )
-        if not number_elems:
-            # just to be safe...
-            self.try_click_no_on_popup()
         for number_elem in number_elems:
             m = re.search('Total for ([0-9]{3}-[0-9]{3}-[0-9]{4})',
                           number_elem.text)
-            # sometimes a survey window pops up a few seconds after the billing
-            # page has already been loaded. Because total charge for each line
-            # has to be in the billing page, if the regex fails, mostly likely
-            # it's due to a popup window. So we will try to click on No again.
-            if not m:
-                self.try_click_no_on_popup()
             number = m.group(1)
             # get name for number
             name_elem = self.browser.find_element_by_xpath(
@@ -227,7 +251,20 @@ class AttBillSpliter(object):
                                             start_date=start_date,
                                             end_date=end_date)
         # parse user name and number
-        users = self.parse_user_info()
+        # sometimes a survey window pops up a few seconds after the billing
+        # page has been loaded. This usually happens when we are parsing
+        # user info. So if the parse_user_info fails the first time, we will
+        # try to click No on popup window and give it a second try.
+        for trial in (1, 2):
+            try:
+                users = self.parse_user_info()
+            except:
+                if trial == 1:
+                    logger.warning('Parsing user info failed. Will retry.')
+                elif trial == 2:
+                    logger.exception('Parsing user info failed.')
+                    raise ParseError('Parsing user info failed.')
+        logger.info('Parsing User info succeeded.')
         # set account holder
         account_holder = users[0]
         # ---------------------------------------------------------------------
@@ -525,6 +562,9 @@ class AttBillSpliter(object):
                 'Wireless total calculated does not match with the bill'
             )
         logger.info('Wireless charges calculation results verified.')
+        # aggregate monthly charges
+        aggregate_wireless_monthly(billing_cycle)
+        logger.info('Wireless charges aggregated %s.', billing_cycle_name)
         logger.info('Finished procesessing bill %s.', billing_cycle_name)
 
     def run(self, cycle_lags):
@@ -580,7 +620,7 @@ class AttBillSpliter(object):
                 logger.info('Billing detail page sanity check passed.')
             self.split_previous_bill()
             self.browser.switch_to.window(current_window)
-        # self.browser.quit()
+        self.browser.quit()
         logger.info('Browser closed.')
 
 
@@ -612,7 +652,3 @@ def run_split_bill():
     lags = [int(lag) for lag in sys.argv[2:]]
     bill_splitter.run(lags)
     db.close()
-
-
-if __name__ == '__main__':
-    run_split_bill()

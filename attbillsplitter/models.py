@@ -59,8 +59,8 @@ class Charge(BaseModel):
 
 
 class MonthlyBill(BaseModel):
-    user = ForeignKeyField(User)
+    user = ForeignKeyField(User, related_name='mb_user')
+    billing_cycle = ForeignKeyField(BillingCycle,
+                                    related_name='mb_billing_cycle')
     total = FloatField()
-    notified_at = DateTimeField()
-    paid_at = DateTimeField()
     created_at = DateTimeField(constraints=[SQL("DEFAULT (datetime('now'))")])
