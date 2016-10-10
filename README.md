@@ -47,7 +47,7 @@ chromedriver = /Users/Brian/Downloads/chromedriver
 This is the first thing you run. This will start parsing your history bills, splitting them and storing data to database.
 *NOTE: If you are running this in `att-bill-splitter` directory, you need to modify `config.ini` to the path to the config file.*
 ```
-[att-bill-splitter]run-split-bill config.ini LAG_BILL_1 [LAG_BILL_2 ...]
+(venv) [att-bill-splitter]run-split-bill config.ini LAG_BILL_1 [LAG_BILL_2 ...]
 ```
 `LAG_BILL_1` (an integer) is the lag between the first bill you want to parse and the last posted bill. For example, 0 refers to the last posted billing cycle (not yet supported! more details below), and 1 refers to billing cycle before that, so on an so forth. As it's running, you will see loggings printed to your console. And data are stored in `att_bill.db`.
 Like most web crawlers, the success of parsing relies on a couple of variables, a good Internet connection, AT&T not redesigning their billing page and no unexpected web activities (like popup survey window). In this app, I set the page loading timeout threshold to be 20 seconds. If you keep getting TimeoutError, you might want to tune it up. Also throughtout the parsing process I tried my best to handle popup windows wherever I can. There are still cases (very rare though) when a survey window pops in a while after the billing page has been loaded. If you see such errors, please retry. 
@@ -55,7 +55,7 @@ Like most web crawlers, the success of parsing relies on a couple of variables, 
 ### View Monthly Charges Summary for Users
 After you parsed the bills, you can view them in your terminal. The command below will print the monthly summary for each user.
 ```
-[att-bill-splitter]run-print-summary MONTH [YEAR]
+(venv) [att-bill-splitter]run-print-summary MONTH [YEAR]
 ```
 `MONTH` (1-12) refers to the month of the end date of the billing cycle. For example if you want to view billing cycle is Sep 15 - Oct 14, `MONTH` should be `10`. `YEAR` (optional) should be 4-digit.
 It looks like this
@@ -78,7 +78,7 @@ It looks like this
 ### View Monthly Charges Details for Users
 You can also view itemized charge details for each user.
 ```
-[att-bill-splitter]run-print-details MONTH [YEAR]
+(venv) [att-bill-splitter]run-print-details MONTH [YEAR]
 ```
 `MONTH` (1-12) refers to the month of the end date of the billing cycle. For example if you want to view billing cycle is Sep 15 - Oct 14, `MONTH` should be `10`. `YEAR` (optional) should be 4-digit.
 It looks like this
@@ -104,7 +104,7 @@ It looks like this
 View each user's monthly charge details (and total) and decide if you want to send it to the user via SMS.
 *NOTE: If you are running this in `att-bill-splitter` directory, you need to modify `config.ini` to the path to the config file.*
 ```
-[att-bill-splitter]run-notify-users config.ini MONTH [YEAR]
+(venv) [att-bill-splitter]run-notify-users config.ini MONTH [YEAR]
 ```
 `MONTH` (1-12) refers to the month of the end date of the billing cycle. For example if you want to view billing cycle is Sep 15 - Oct 14, `MONTH` should be `10`. `YEAR` (optional) should be 4-digit.
 It looks like this
