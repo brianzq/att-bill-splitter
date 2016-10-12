@@ -1,13 +1,13 @@
-#!/usr/bin/env python3
 # -*- coding:utf-8 -*-
 """Service that aggregate monthly wireless charges for each line in account.
 """
 
-import configparser
 import datetime as dt
 import logging
 import sys
+import click
 import peewee as pw
+import attbillsplitter.utils as utils
 from twilio.rest import TwilioRestClient
 from attbillsplitter.models import (
     User, ChargeCategory, ChargeType, BillingCycle, Charge, MonthlyBill, db
@@ -196,6 +196,7 @@ def notify_users_monthly_details(message_client, payment_msg, month,
     if current_user_total:
         message += '  - {:30} {:.2f} \U0001F911\n'.format('Total',
                                                           current_user_total)
+        messages[current_user_num] = message
     # print message for user to confirm
     for num, msg in messages.items():
         print(num)
@@ -206,20 +207,13 @@ def notify_users_monthly_details(message_client, payment_msg, month,
             message_client.send_message(body=body, to=num)
             logger.info('%s charge details sent to %s, body:\n%s',
                         bc.name, num, msg)
-            print('Message send to {}\n'.format(num))
+            print('Message sent to {}\n'.format(num))
 
 
 class MessageClient(object):
     """Twilio message client that sends text message to users."""
-    def __init__(self, number, account_sid, auth_token):
-        """
-        :param number: twilio number (+11234567890)
-        :type number: str
-        :param account_sid: twilio account security identifier
-        :type account_sid: str
-        :param auth_token: twilio authentication token
-        :type auth_token: str
-        """
+    def __init__(self):
+        number, account_sid, auth_token = utils.load_twilio_config()
         self.number = number
         self.twilio_client = TwilioRestClient(account_sid, auth_token)
 
@@ -235,41 +229,30 @@ class MessageClient(object):
         self.twilio_client.messages.create(body=body, to=to, from_=self.number)
 
 
-def run_print_summary():
+@click.command()
+@click.argument('month', type=int)
+@click.option('-y', '--year', type=int)
+def run_print_summary(month, year):
     """Take arguments from command line and run print_wireless_monthly_summary
     """
-    month = int(sys.argv[1])
-    year = int(sys.argv[2]) if len(sys.argv) == 3 else None
     print_wireless_monthly_summary(month, year)
 
 
-def run_print_details():
+@click.command()
+@click.argument('month', type=int)
+@click.option('-y', '--year', type=int)
+def run_print_details(month, year):
     """Take arguments from command line and run print_wireless_monthly_details
     """
-    month = int(sys.argv[1])
-    year = int(sys.argv[2]) if len(sys.argv) == 3 else None
     print_wireless_monthly_details(month, year)
 
 
-def run_notify_users():
+@click.command()
+@click.argument('month', type=int)
+@click.option('-y', '--year', type=int)
+def run_notify_users(month, year):
     """Take arguments from command line and run notify_users_monthly_details
     """
-    config = configparser.ConfigParser()
-    config_path = sys.argv[1]
-    config.read(config_path)
-    twilio_conf = config['twilio']
-    number = twilio_conf['number']
-    if number == 'your_twilio_number':
-        print('Please add you twilio number in config.ini. '
-              'You can get one for free at https://www.twilio.com/')
-    account_sid = twilio_conf['account_sid']
-    if account_sid == 'your_twilio_account_sid':
-        print('Please add you twilio account_sid in config.ini.')
-    auth_token = twilio_conf['auth_token']
-    if auth_token == 'your_twilio_auth_token':
-        print('Please add you twilio auth_token in config.ini.')
-    payment_msg = twilio_conf['payment_msg']
-    mc = MessageClient(number, account_sid, auth_token)
-    month = int(sys.argv[2])
-    year = int(sys.argv[3]) if len(sys.argv) == 4 else None
+    mc = MessageClient()
+    payment_msg = utils.load_payment_msg()
     notify_users_monthly_details(mc, payment_msg, month, year)
