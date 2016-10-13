@@ -4,6 +4,7 @@
 #
 *.db
 *.log
+chromedriver
 
 #
 trash/
@@ -16,5 +17,3 @@ dist/
 *.eggs
 .cache/
 
-#
-config.ini

@@ -2,10 +2,9 @@
 """Database and Data models for att-bill-splitter."""
 
 from peewee import *
-from peewee import SqliteDatabase
+from attbillsplitter.utils import DATABASE_PATH
 
-DATABASE = 'att_bill.db'
-db = SqliteDatabase(DATABASE)
+db = SqliteDatabase(DATABASE_PATH)
 
 
 class BaseModel(Model):

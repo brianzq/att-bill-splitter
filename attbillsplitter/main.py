@@ -1,30 +1,28 @@
-#!/usr/bin/env python3
 # -*- coding:utf-8 -*-
 """Service that parses the AT&T bill, splits wireless charges among users and
 persists data in database.
 """
 
 import datetime as dt
+import getpass
 import logging
-import os
 import re
 import sys
+import click
 import peewee as pw
-import configparser
 from slugify import slugify
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-
 from attbillsplitter.errors import (
-    UrlError, ConfigError, LoginError, ParsingError, CalculationError,
-    NoSuchElementException, TimeoutException, IntegrityError,
-    WebDriverException
+    UrlError, WebDriverException, ConfigError, LoginError, ParsingError,
+    CalculationError, NoSuchElementException, TimeoutException, IntegrityError
 )
 from attbillsplitter.models import (
     User, ChargeCategory, ChargeType, BillingCycle, Charge, MonthlyBill, db
 )
+from attbillsplitter.utils import PAGE_LOADING_WAIT_S, CHROMEDRIVER_PATH
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -119,28 +117,18 @@ class AttBillSpliter(object):
         'myworld?actionType=ViewBillHistory'
     )
 
-    def __init__(self, username, password, chromedriver, page_loading_wait_s):
-        self.username = username
-        self.password = password
-        args = [chromedriver] if chromedriver else []
+    def __init__(self):
         try:
-            self.browser = webdriver.Chrome(*args)
+            self.browser = webdriver.Chrome(CHROMEDRIVER_PATH)
         except WebDriverException:
-            if chromedriver:
-                msg = ("'chromedriver' executable not found in {}. "
-                       "Please double check the path you provided "
-                       "in config.ini".format(chromedriver))
-            else:
-                msg = ("You haven't specify path to your 'chromedriver' "
-                       "executable in config.ini. Make sure it's in your PATH "
-                       "or add the path in config.ini under [settings]")
-            raise ConfigError(msg) from None 
+            msg = ('chromedriver executable not found '
+                   'in {}'.format(CHROMEDRIVER_PATH))
+            raise ConfigError(msg)
         except:
             msg = ('Something happened when tring to launch the '
                    'Chrome browser. Make sure you have installed '
                    'Chrome and retry.')
             raise ConfigError(msg)
-        self.page_loading_wait_s = page_loading_wait_s
 
     def try_click_no_on_popup(self):
         """Try to click on 'No' button on a page.
@@ -172,13 +160,15 @@ class AttBillSpliter(object):
             raise LoginError('Unable to locate userid input element')
         # first clear the element in case browser autofill
         username_elem.clear()
-        username_elem.send_keys(self.username)
+        username = input('\U0001F464  Username: ')
+        username_elem.send_keys(username)
         try:
             password_elem = self.browser.find_element_by_id('password')
         except NoSuchElementException:
             raise LoginError('Unable to locate password input element')
         password_elem.clear()
-        password_elem.send_keys(self.password)
+        password = getpass.getpass(prompt='\U0001F5DD  Password: ')
+        password_elem.send_keys(password)
         password_elem.submit()
         self.try_click_no_on_popup()
         if self.browser.title != self.login_landing_page_title:
@@ -240,7 +230,7 @@ class AttBillSpliter(object):
         ).text
         billing_cycle_name = new_charge_title[16:]
         if BillingCycle.select().where(
-            BillingCycle.name == billing_cycle_name
+                BillingCycle.name == billing_cycle_name
         ):
             logger.warning('Billing Cycle %s already processed.',
                            billing_cycle_name)
@@ -263,7 +253,7 @@ class AttBillSpliter(object):
                     logger.warning('Parsing user info failed. Will retry.')
                 elif trial == 2:
                     logger.exception('Parsing user info failed.')
-                    raise ParseError('Parsing user info failed.')
+                    raise ParsingError('Parsing user info failed.')
         logger.info('Parsing User info succeeded.')
         # set account holder
         account_holder = users[0]
@@ -581,7 +571,7 @@ class AttBillSpliter(object):
         """
         self.login()
         self.go_to_history_bills()
-        wait = WebDriverWait(self.browser, self.page_loading_wait_s)
+        wait = WebDriverWait(self.browser, PAGE_LOADING_WAIT_S)
         previous_bill_elems = wait.until(
             EC.presence_of_all_elements_located(
                 (By.XPATH, "//td[@headers='view_bill']")
@@ -624,31 +614,18 @@ class AttBillSpliter(object):
         logger.info('Browser closed.')
 
 
-def run_split_bill():
-    """Worker for parsing the website and splitting the bill."""
-    # first load config file
-    config = configparser.ConfigParser()
-    config_path = sys.argv[1]
-    if not config.read(config_path):
-        raise ConfigError('Config file not found.')
+@click.command()
+@click.argument('lags', nargs=-1, type=int)
+def run_split_bill(lags):
+    """Parse the website, split the bill and store data in database.
 
-    att_username = config['att']['username']
-    if att_username == 'your_att_username':
-        raise ConfigError('Please update your att username in config.ini')
-
-    att_password = config['att']['password']
-    if att_password == 'your_att_password':
-        raise ConfigError('Please update your att password in config.ini')
-
+    LAGS: lags between the bills you want to parse and the last
+        posted bill.
+    :type lags: list
+    """
     # create table if not exists
     create_tables_if_not_exist()
     # split
-    bill_splitter = AttBillSpliter(
-        username=att_username,
-        password=att_password,
-        chromedriver=config['settings'].get('chromedriver'),
-        page_loading_wait_s=int(config['settings']['page_loading_wait_s'])
-    )
-    lags = [int(lag) for lag in sys.argv[2:]]
+    bill_splitter = AttBillSpliter()
     bill_splitter.run(lags)
     db.close()
