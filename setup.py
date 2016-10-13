@@ -3,7 +3,7 @@
 
 import configparser
 import os
-import requests
+from urllib import request
 import zipfile
 from setuptools import find_packages, setup
 from setuptools.command.install import install
@@ -30,9 +30,9 @@ def download_chrome_driver():
     url = ('http://chromedriver.storage.googleapis.com/2.24/'
            'chromedriver_mac64.zip')
     print('Start dowloading chromedriver...')
-    req = requests.get(url)
+    req = request.urlopen(url)
     with open(CHROMEDRIVER_ZIP_PATH, 'wb') as f:
-        f.write(req.content)
+        f.write(req.read())
     print('chromedriver.zip downloaded.')
 
 
