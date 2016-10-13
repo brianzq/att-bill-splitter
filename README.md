@@ -16,7 +16,7 @@ What it does:
   
 ## Installation
 ```
-[~] git clone git@github.com:brian-ds/att-bill-splitter.git
+[~] git clone https://github.com/brian-ds/att-bill-splitter.git
 [~] cd att-bill-splitter
 [att-bill-splitter] python3 setup.py install
 ```
@@ -26,30 +26,45 @@ All set! Just that simple!
 
 ## Usage
 ### Parse and Split the Bill
-This is the first thing you run. You will be prompted to input your AT&T username and password. Once logged in, it will start parsing your history bills, splitting them and storing data to database.
+This is the first thing you run. A Chrome browser will be fired up in the background. You will be prompted to input your AT&T username and password (within terminal). Once logged in, it will start parsing your history bills, splitting them and storing data to database.
 ```
 [att-bill-splitter]att-split-bill LAG_BILL_1 [LAG_BILL_2 ...]
 ```
 `LAG_BILL_1` (an integer) is the lag between the first bill you want to parse and the last posted bill. For example, 0 refers to the last posted billing cycle (not yet supported! more details below), and 1 refers to billing cycle before that, so on an so forth. As it's running, you will see logs printed to your console. And data are stored in `att_bill.db`.
 
+For example,
+```
+[att-bill-splitter] att-split-bill 1
+👤  Username: your_user_name
+🗝  Password: 
+2016-10-13 14:09:16,437 - INFO - login succeeded.
+2016-10-13 14:09:22,418 - INFO - landed at history billings page.
+2016-10-13 14:09:34,520 - INFO - No popup window detected.
+2016-10-13 14:09:34,540 - INFO - Billing detail page sanity check passed.
+2016-10-13 14:09:34,540 - INFO - Start processing new bill...
+2016-10-13 14:09:36,380 - INFO - Parsing User info succeeded.
+2016-10-13 14:09:39,267 - INFO - Wireless charges calculation results verified.
+2016-10-13 14:09:39,278 - INFO - Wireless charges aggregated Jul 15 - Aug 14, 2016.
+2016-10-13 14:09:39,279 - INFO - Finished procesessing bill Jul 15 - Aug 14, 2016.
+2016-10-13 14:09:39,346 - INFO - Browser closed.
+```
 Sometimes promotion or survey window pops up on AT&T web pages. I tried my best to handle them wherever I can. There are still cases (very rare though) when a survey window pops up a while after the billing page has been loaded. If you see such errors, please retry. 
 
 ### View Monthly Charges Summary for Users
 After you parsed the bills, you can view them in your terminal. The command below will print the monthly summary for each user.
 ```
-[att-bill-splitter]att-print-summary MONTH [YEAR]
+[att-bill-splitter] att-print-summary MONTH [YEAR]
 ```
 `MONTH` (1-12) refers to the month of the end date of the billing cycle. For example if you want to view billing cycle is Sep 15 - Oct 14, `MONTH` should be `10`. `YEAR` (optional) should be 4-digit.
 
 For example,
 ```
-[att-bill-splitter]att-print-summary 8
+[att-bill-splitter] att-print-summary 8
 
 --------------------------------------------------------------
-    Charge Summary for Billing Cycle Mar 15 - Apr 14, 2016
+    Charge Summary for Billing Cycle Jul 15 - Aug 14, 2016
 --------------------------------------------------------------
        USER_NAME_1     (415-555-0001)      Total: 72.99
-       USER_NAME_2     (415-555-0002)      Total: 67.25
        USER_NAME_3     (415-555-0003)      Total: 62.67
        USER_NAME_4     (415-555-0004)      Total: 31.42
        USER_NAME_5     (415-555-0005)      Total: 31.42
@@ -64,13 +79,13 @@ For example,
 ### View Monthly Charges Details for Users
 You can also view itemized charge details for each user.
 ```
-[att-bill-splitter]att-print-details MONTH [YEAR]
+[att-bill-splitter] att-print-details MONTH [YEAR]
 ```
 `MONTH` (1-12) refers to the month of the end date of the billing cycle. For example if you want to view billing cycle is Sep 15 - Oct 14, `MONTH` should be `10`. `YEAR` (optional) should be 4-digit.
 
 For example,
 ```
-(venv) [att-bill-splitter]att-print-details 8 -y 2016
+(venv) [att-bill-splitter] att-print-details 8 -y 2016
 
     USER_NAME_1 (415-555-0001)
       - Monthly Charges                            15.00
@@ -80,7 +95,7 @@ For example,
       - Account Monthly Charges Share              10.14
       - Total                                      72.99
 
-    USER_NAME_1 (415-555-0002)
+    USER_NAME_2 (415-555-0002)
       - Monthly Charges                            15.00
       - Equipment Charges                          37.50
       - Surcharges & Fees                          2.69
@@ -94,21 +109,29 @@ View each user's monthly charge details (and total) and decide if you want to se
 
 You will be prompt to input your Twilio number, account SID and authentication token. You can get them in a minute for free at www.twilio.com. You will also be asked to input a short message to put at the end of the text messages you send to your users, for instance, to tell your users how to pay you.
 ```
-[att-bill-splitter]att-notify-users MONTH [YEAR]
+[att-bill-splitter] att-notify-users MONTH [YEAR]
 ```
 `MONTH` (1-12) refers to the month of the end date of the billing cycle. For example if you want to view billing cycle is Sep 15 - Oct 14, `MONTH` should be `10`. `YEAR` (optional) should be 4-digit.
 For example,
 ```
-[att-bill-splitter]att-notify-users 8 --year 2016
+[att-bill-splitter]  att-notify-users 8 --year 2016
+Twilio Number (e.g. +11234567890): your_twilio_number
+Twilio Account SID: your_account_sid
+Twilio Authentication Token: your_auth_token
+✅  Twilio account added.
+You can enter a short message to put after the charge details to send to your users. (For example, letting your users know how to pay you)
+-> Please Venmo me at Brianz56.
+✅  Payment message saved.
 
+415-555-0001
 Hi USER_NAME_1 (415-555-0001),
 Your AT&T Wireless Charges for Jul 15 - Aug 14, 2016:
   - Monthly Charges                15.00
-  - Equipment Charges              37.50
+  - Equipment Charges              42.50
   - Surcharges & Fees              2.69
-  - Government Fees & Taxes        1.92
+  - Government Fees & Taxes        2.66
   - Account Monthly Charges Share  10.14
-  - Total                          67.25
+  - Total                          72.99 🤑
 
 Notify (y/n)?
 ```
