@@ -22,7 +22,7 @@ from attbillsplitter.errors import (
 from attbillsplitter.models import (
     User, ChargeCategory, ChargeType, BillingCycle, Charge, MonthlyBill, db
 )
-from attbillsplitter.utils import PAGE_LOADING_WAIT_S
+from attbillsplitter.utils import PAGE_LOADING_WAIT_S, CHROMEDRIVER_PATH
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -118,14 +118,11 @@ class AttBillSpliter(object):
     )
 
     def __init__(self):
-        chromedriver = input('Enter the path to chromedriver executable. e.g.'
-                             ' /Users/Brian/Downloads/chromedriver\n-> ')
         try:
-            self.browser = webdriver.Chrome(chromedriver)
+            self.browser = webdriver.Chrome(CHROMEDRIVER_PATH)
         except WebDriverException:
-            msg = (
-                'chromedriver executable not found in {}'.format(chromedriver)
-            )
+            msg = ('chromedriver executable not found '
+                   'in {}'.format(CHROMEDRIVER_PATH))
             raise ConfigError(msg)
         except:
             msg = ('Something happened when tring to launch the '
@@ -620,10 +617,10 @@ class AttBillSpliter(object):
 @click.command()
 @click.argument('lags', nargs=-1, type=int)
 def run_split_bill(lags):
-    """Worker for parsing the website and splitting the bill.
+    """Parse the website, split the bill and store data in database.
 
-    :param lags: lag between the first bill you want to parse and the last
-        posted bill
+    LAGS: lags between the bills you want to parse and the last
+        posted bill.
     :type lags: list
     """
     # create table if not exists

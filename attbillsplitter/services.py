@@ -4,7 +4,6 @@
 
 import datetime as dt
 import logging
-import sys
 import click
 import peewee as pw
 import attbillsplitter.utils as utils
@@ -15,7 +14,7 @@ from attbillsplitter.models import (
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
-ch = logging.FileHandler('notif_history.log')
+ch = logging.FileHandler(utils.LOG_PATH)
 ch.setLevel(logging.INFO)
 formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 ch.setFormatter(formatter)
@@ -207,7 +206,7 @@ def notify_users_monthly_details(message_client, payment_msg, month,
             message_client.send_message(body=body, to=num)
             logger.info('%s charge details sent to %s, body:\n%s',
                         bc.name, num, msg)
-            print('Message sent to {}\n'.format(num))
+            print('\U00002705  Message sent to {}\n'.format(num))
 
 
 class MessageClient(object):
