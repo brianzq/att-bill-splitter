@@ -59,7 +59,7 @@ class InstallChromedriver(install):
         download_chrome_driver()
         unzip_chrome_driver()
         save_config()
-        install.run(self)
+        install.do_egg_install(self)
 
 
 setup(
