@@ -1,38 +1,21 @@
-# -*- coding:utf-8 -*-
-"""Service that parses the AT&T bill, splits wireless charges among users and
-persists data in database.
-"""
 
 import datetime as dt
-import getpass
-import logging
 import re
-import sys
 import click
 import peewee as pw
+import requests
+from bs4 import BeautifulSoup, Tag
 from slugify import slugify
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from attbillsplitter.errors import (
-    UrlError, WebDriverException, ConfigError, LoginError, ParsingError,
-    CalculationError, NoSuchElementException, TimeoutException, IntegrityError
-)
+# import fake_useragent
+from attbillsplitter.errors import ParsingError
 from attbillsplitter.models import (
     User, ChargeCategory, ChargeType, BillingCycle, Charge, MonthlyBill, db
 )
-from attbillsplitter.utils import PAGE_LOADING_WAIT_S, CHROMEDRIVER_PATH
 
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
-# suppress logging for selenium
-logging.getLogger("selenium").setLevel(logging.WARNING)
-ch = logging.StreamHandler(sys.stdout)
-ch.setLevel(logging.INFO)
-formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-ch.setFormatter(formatter)
-logger.addHandler(ch)
+
+CHROME_AGENT = ('Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 '
+                '(KHTML, like Gecko) Chrome/28.0.1468.0 Safari/537.36')
+# CHROME_AGENT = fake_useragent.UserAgent().chrome
 
 
 def create_tables_if_not_exist():
@@ -62,7 +45,7 @@ def get_start_end_date(bc_name):
     :returns: a tuple of start date (datetime.date) and end date
     :rtype: tuple
     """
-    m = re.search('(\w+ \d+) - (\w+ \d+), (\d{4})', bc_name)
+    m = re.search(r'(\w+ \d+) - (\w+ \d+), (\d{4})', bc_name)
     start_date_str = '{}, {}'.format(m.group(1), m.group(3))
     end_date_str = '{}, {}'.format(m.group(2), m.group(3))
     start_date = dt.datetime.strptime(start_date_str, '%b %d, %Y').date()
@@ -78,8 +61,7 @@ def aggregate_wireless_monthly(bc):
     :returns: None
     """
     if MonthlyBill.select().where(MonthlyBill.billing_cycle == bc).exists():
-        logger.info('Charges already aggregated for billing cycle %s',
-                    bc.name)
+        print('Charges already aggregated for {}'.format(bc.name))
         return
 
     query = (
@@ -101,96 +83,77 @@ def aggregate_wireless_monthly(bc):
         MonthlyBill.create(user=user, billing_cycle=bc, total=user.total)
 
 
-class AttBillSpliter(object):
+class AttBillSplitter(object):
     """Parse AT&T bill and split wireless charges among users.
 
     Currently tested on AT&T account with U-verse TV, Internet and Mobile
     Share Value Plan (for wireless).
     """
-    login_url = 'https://www.att.com/olam/'
-    login_page_title = (
-        'myAT&T Login - Pay Bills Online & Manage Your AT&T Account'
-    )
-    login_landing_page_title = 'Account Overview'
-    history_bills_url = (
-        'https://www.att.com/olam/passthroughAction.'
-        'myworld?actionType=ViewBillHistory'
-    )
 
-    def __init__(self):
-        try:
-            self.browser = webdriver.Chrome(CHROMEDRIVER_PATH)
-        except WebDriverException:
-            msg = ('chromedriver executable not found '
-                   'in {}'.format(CHROMEDRIVER_PATH))
-            raise ConfigError(msg)
-        except:
-            msg = ('Something happened when tring to launch the '
-                   'Chrome browser. Make sure you have installed '
-                   'Chrome and retry.')
-            raise ConfigError(msg)
-
-    def try_click_no_on_popup(self):
-        """Try to click on 'No' button on a page.
-
-        Sometimes promotion or survey window popup and block the window
-        we want to parse. This method will try to find a button element
-        <a> with 'No' in the text and click on it.
-        """
-        try:
-            self.browser.find_element_by_xpath(
-                "//a[contains(text(), 'No')]"
-            ).click()
-            logger.info('Popup page skipped.')
-        except:
-            pass
+    def __init__(self, username, password):
+        self.username = username
+        self.password = password
+        self.session = requests.session()
+        headers = {'User-Agent': CHROME_AGENT}
+        self.session.headers.update(headers)
 
     def login(self):
-        """Log in AT&T account.
+        print('Login started...')
+        login_url = (
+            'https://myattdx05.att.com/commonLogin/igate_wam/multiLogin.do'
+        )
+        # obtain session cookies needed to login
+        pre_login = self.session.get(login_url)
+        soup = BeautifulSoup(pre_login.text, 'lxml')
+        hidden_inputs = soup.find_all('input', type='hidden')
+        form = {
+            x.get('name'): x.get('value')
+            for x in hidden_inputs if x.get('value') and x.get('name')
+        }
+        form.update({'userid': self.username, 'password': self.password})
+        login_submit = self.session.post(login_url, data=form)
+        if 'Your total balance is:' in login_submit.text:
+            print('Login succeeded.')
 
-        raises UrlError: unexpected page title
-        raises LoginError: fail to login, could be wrong cridentials
-        """
-        self.browser.get(self.login_url)
-        if self.browser.title != self.login_page_title:
-            raise UrlError('Login page title does not match.')
-        try:
-            username_elem = self.browser.find_element_by_id('userID')
-        except NoSuchElementException:
-            raise LoginError('Unable to locate userid input element')
-        # first clear the element in case browser autofill
-        username_elem.clear()
-        username = input('\U0001F464  Username: ')
-        username_elem.send_keys(username)
-        try:
-            password_elem = self.browser.find_element_by_id('password')
-        except NoSuchElementException:
-            raise LoginError('Unable to locate password input element')
-        password_elem.clear()
-        password = getpass.getpass(prompt='\U0001F5DD  Password: ')
-        password_elem.send_keys(password)
-        password_elem.submit()
-        self.try_click_no_on_popup()
-        if self.browser.title != self.login_landing_page_title:
-            raise LoginError(
-                'Login landing page title does not match.'
-            )
-        logger.info('login succeeded.')
+    def get_history_bills(self):
+        # this request will add some cookie
+        self.session.get(
+            'https://www.att.com/olam/passthroughAction.myworld',
+            params={'actionType': 'ViewBillHistory'}
+        )
+        # get account number
+        an_req = self.session.get(
+            'https://www.att.com/olam/acctInfoView.myworld',
+            params={'actionEvent': 'displayProfileInformation'}
+        )
+        an_soup = BeautifulSoup(an_req.text, 'lxml')
+        act_num_tag = an_soup.find('li', class_='account-number')
+        m = re.search(r'.?(\d+).?', act_num_tag.text, re.DOTALL)
+        if not m:
+            raise ParsingError('Account number not found!')
+        act_num = m.group(1)
 
-    def go_to_history_bills(self):
-        """Navigate to billing history page.
+        # now we can get billing history
+        bh_req = self.session.get(
+            'https://www.att.com/olam/billingPaymentHistoryAction.myworld',
+            params={'action': 'ViewBillHistory'}
+        )
+        bh_req.raise_for_status()
+        bh_soup = BeautifulSoup(bh_req.text, 'lxml')
+        bc_tags = bh_soup.find_all('td', headers=['bill_period'])
+        bill_link_template = (
+            'https://www.att.com/olam/billPrintPreview.myworld?'
+            'fromPage=history&billStatementID={}|{}|T06|V'
+        )
+        for tag in bc_tags:
+            bc_name = tag.contents[0]
+            end_date_name = bc_name.split(' - ')[1]
+            end_date = dt.datetime.strptime(end_date_name, '%b %d, %Y')
+            end_date_str = end_date.strftime('%Y%m%d')
+            bill_link = bill_link_template.format(end_date_str, act_num)
+            yield (bc_name, bill_link)
 
-        raises UrlError: unexpected page title
-        """
-        self.browser.get(self.history_bills_url)
-        self.try_click_no_on_popup()
-        if self.browser.title != 'Billing & Usage - AT&T':
-            raise UrlError(
-                'Unable to land at history bills page, url may have changed.'
-            )
-        logger.info('landed at history billings page.')
-
-    def parse_user_info(self):
+    def parse_user_info(self, bill_html):
         """Parse the bill to find name and number for each line and create
         users. Account holder should be the first entry.
 
@@ -198,235 +161,88 @@ class AttBillSpliter(object):
         :rtype: list
         """
         users = []
-        number_elems = self.browser.find_elements_by_xpath(
-            "//div[contains(text(), 'Total for')]"
-        )
-        for number_elem in number_elems:
-            m = re.search('Total for ([0-9]{3}-[0-9]{3}-[0-9]{4})',
-                          number_elem.text)
-            number = m.group(1)
+        soup = BeautifulSoup(bill_html, 'lxml')
+        number_tags = soup.find_all('div', string=re.compile('Total for'))
+        for num_tag in number_tags:
+            number = num_tag.text.lstrip('Total for')
             # get name for number
-            name_elem = self.browser.find_element_by_xpath(
-                "//div[@class='accRow bold MarTop10' and "
-                "contains(text(), '{}')]".format(number)
-            )
-            m = re.search('(.+) {}'.format(number), name_elem.text)
-            name = m.group(1)
+            name_tag = soup.find('div', class_='accRow bold MarTop10',
+                                 string=re.compile('{}'.format(number)))
+            name = name_tag.text.rstrip(' {}'.format(number))
             user, _ = User.get_or_create(name=name, number=number)
             users.append(user)
         return users
 
-    def split_previous_bill(self):
-        """All parsing and wireless bill splitting happen here.
+    def split_bill(self, bc_name, bill_link):
+        """Parse bill and split wireless charges among users.
 
-        First Parse for U-verse TV, then U-verse Internet, and finally
-        Wireless. Wireless account monthly charges (after discount if there
-        is any) are split among all users.
+        Currently not parsing U-Verse charges.
+        :param bc_name: billing cycle name
+        :type bc_name: str
+        :param bill_link: url to bill
+        :type bc_name: str
         """
-        logger.info('Start processing new bill...')
-        # billing cycle
-        new_charge_title = self.browser.find_element_by_xpath(
-            "//h3[contains(text(), 'New charges for')]"
-        ).text
-        billing_cycle_name = new_charge_title[16:]
-        if BillingCycle.select().where(
-                BillingCycle.name == billing_cycle_name
-        ):
-            logger.warning('Billing Cycle %s already processed.',
-                           billing_cycle_name)
-            return
+        bill_req = self.session.get(bill_link)
+        bill_html = bill_req.text
+        if 'Account Details' not in bill_html:
+            raise ParsingError('Failed to retrieve billing page')
 
-        start_date, end_date = get_start_end_date(billing_cycle_name)
-        billing_cycle = BillingCycle.create(name=billing_cycle_name,
+        soup = BeautifulSoup(bill_html, 'lxml')
+        start_date, end_date = get_start_end_date(bc_name)
+        billing_cycle = BillingCycle.create(name=bc_name,
                                             start_date=start_date,
                                             end_date=end_date)
+
         # parse user name and number
-        # sometimes a survey window pops up a few seconds after the billing
-        # page has been loaded. This usually happens when we are parsing
-        # user info. So if the parse_user_info fails the first time, we will
-        # try to click No on popup window and give it a second try.
-        for trial in (1, 2):
-            try:
-                users = self.parse_user_info()
-            except:
-                if trial == 1:
-                    logger.warning('Parsing user info failed. Will retry.')
-                elif trial == 2:
-                    logger.exception('Parsing user info failed.')
-                    raise ParsingError('Parsing user info failed.')
-        logger.info('Parsing User info succeeded.')
-        # set account holder
+        users = self.parse_user_info(bill_html)
+        if not users:
+            return
+
         account_holder = users[0]
-        # ---------------------------------------------------------------------
-        # U-verse tv
-        # ---------------------------------------------------------------------
-        # beginning div
-        beginning_div_xpath = (
-            "div[starts-with(@class, 'MarLeft12 MarRight90') and "
-            "descendant::div[contains(text(), 'U-verse TV')]]"
-        )
-        # # end div
-        end_div_xpath = (
-            "div[@class='Padbot5 topDotBorder MarLeft12 MarRight90' and "
-            "descendant::div[contains(text(), 'Total U-verse TV Charges')]]"
-        )
-        charge_elems = self.browser.find_elements_by_xpath(
-            "//div[(starts-with(@class, 'accSummary') or "
-            "@id='UTV-monthly') and preceding-sibling::{} and "
-            "following-sibling::{}]".format(
-                beginning_div_xpath, end_div_xpath
-            )
-        )
-        if charge_elems:
-            utv_charge_category, _ = ChargeCategory.get_or_create(
-                category='utv',
-                text='U-verse TV'
-            )
-            for elem in charge_elems:
-                charge_type_text = elem.find_element_by_xpath("div[1]").text
-                if charge_type_text.startswith('Monthly Charges'):
-                    charge_type_text = 'Monthly Charges'
-                m = re.search(
-                    'Total {}.*?\$([0-9.]+)'.format(charge_type_text),
-                    elem.text,
-                    flags=re.DOTALL
-                )
-                charge_total = float(m.group(1))
-                # save data to db
-                charge_type_name = slugify(charge_type_text)
-                # ChargeType
-                charge_type, _ = ChargeType.get_or_create(
-                    type=charge_type_name,
-                    text=charge_type_text,
-                    charge_category=utv_charge_category
-                )
-                # Charge
-                try:
-                    new_charge = Charge(
-                        user=account_holder,
-                        charge_type=charge_type,
-                        billing_cycle=billing_cycle,
-                        amount=charge_total
-                    )
-                    new_charge.save()
-                except IntegrityError:
-                    logger.warning(
-                        'Trying to write duplicate charge record!\n%s',
-                        new_charge.__dict__
-                    )
-        else:
-            logger.info('No U-verse TV Charge Elements Found, skipped.')
-
-        # ---------------------------------------------------------------------
-        # U-verse Internet
-        # ---------------------------------------------------------------------
-        # beginning div
-        beginning_div_xpath = (
-            "div[starts-with(@class, 'MarLeft12 MarRight90') and "
-            "descendant::div[contains(text(), 'U-verse Internet')]]"
-        )
-        # end div
-        end_div_xpath = (
-            "div[@class='Padbot5 topDotBorder MarLeft12 MarRight90' and "
-            "descendant::div[contains(text(), "
-            "'Total U-verse Internet Charges')]]"
-        )
-        charge_elems = self.browser.find_elements_by_xpath(
-            "//div[(starts-with(@class, 'accSummary') or "
-            "@id='UVI-monthly') and preceding-sibling::{} and "
-            "following-sibling::{}]".format(
-                beginning_div_xpath, end_div_xpath
-            )
-        )
-        if charge_elems:
-            uvi_charge_category, _ = ChargeCategory.get_or_create(
-                category='uvi',
-                text='U-verse Internet'
-            )
-            for elem in charge_elems:
-                charge_type_text = elem.find_element_by_xpath("div[1]").text
-                if charge_type_text.startswith('Monthly Charges'):
-                    charge_type_text = 'Monthly Charges'
-                m = re.search(
-                    'Total {}.*?\$([0-9.]+)'.format(charge_type_text),
-                    elem.text,
-                    flags=re.DOTALL
-                )
-                charge_total = float(m.group(1))
-                # save data to db
-                charge_type_name = slugify(charge_type_text)
-                # ChargeType
-                charge_type, _ = ChargeType.get_or_create(
-                    type=charge_type_name,
-                    text=charge_type_text,
-                    charge_category=uvi_charge_category
-                )
-                # Charge
-                try:
-                    new_charge = Charge(
-                        user=account_holder,
-                        charge_type=charge_type,
-                        billing_cycle=billing_cycle,
-                        amount=charge_total
-                    )
-                    new_charge.save()
-                except IntegrityError:
-                    logger.warning(
-                        'Trying to write duplicate charge record!\n%s',
-                        new_charge.__dict__
-                    )
-        else:
-            logger.info('No U-verse Internet Charge Elements Found, skipped.')
-
         # ---------------------------------------------------------------------
         # Wireless
         # ---------------------------------------------------------------------
-        # beginning div
-        charged_users = users[:1]  # users who have a positive balance
-        beginning_div_xpath = (
-            "div[@class='MarLeft12 MarRight90 ' and "
-            "descendant::div[contains(text(), '{name} {num}')]]"
+        wireless_charge_category, _ = ChargeCategory.get_or_create(
+            category='wireless',
+            text='Wireless'
         )
-        # end div
-        end_div_xpath = (
-            "div[@class='topDotBorder accSummary MarLeft12 "
-            "Padbot5 botMar10 botMar23ie' and "
-            "descendant::div[contains(text(), 'Total for {num}')]]"
-        )
-        # first parse charges under account holder
-        charge_elems = self.browser.find_elements_by_xpath(
-            "//div[starts-with(@class, 'accSummary') and "
-            "preceding-sibling::{} and following-sibling::{}]".format(
-                beginning_div_xpath.format(name=account_holder.name,
-                                           num=account_holder.number),
-                end_div_xpath.format(num=account_holder.number)
-            )
-        )
-        if charge_elems:
-            wireless_charge_category, _ = ChargeCategory.get_or_create(
-                category='wireless',
-                text='Wireless'
-            )
-            for elem in charge_elems:
-                charge_type_text = elem.find_element_by_xpath("div[1]").text
-                offset = 0
+        charged_users = users[:1]
+        name, number = account_holder.name, account_holder.number
+        offset = 0.0
+        # charge section starts with user name followed by his/her number
+        target = soup.find('div',
+                           string=re.compile('{} {}'.format(name, number)))
+        for tag in target.parent.next_siblings:
+            # all charge data are in divs
+            if not isinstance(tag, Tag) or tag.name != 'div':
+                continue
+
+            # charge section ends with Total for number
+            if 'Total for {}'.format(number) in tag.text:
+                break
+
+            # each charge type has 'accSummary' as one of its css classes
+            if 'accSummary' in tag.get('class', []):
+                charge_type_text = tag.find('div').text.strip('\n\t')
                 if charge_type_text.startswith('Monthly Charges'):
                     charge_type_text = 'Monthly Charges'
-                    # get account monthly charge and discount
-                    act_m_elem = elem.find_element_by_xpath("div[4]/div[1]")
-                    m = re.search('.*?\$([0-9.]+)', act_m_elem.text, re.DOTALL)
-                    w_act_m = float(m.group(1))
-
-                    m = re.search(
-                        'National Account Discount.*?\$([0-9.]+)',
-                        elem.text,
-                        flags=re.DOTALL
+                    # account monthly fee will be shared by all users
+                    w_act_m = float(
+                        re.search(r'\$([0-9.]+)', tag.text).group(1)
                     )
-                    w_act_m_disc = float(m.group(1)) if m else 0
+                    # national discount is applied to account monthly fee
+                    m = re.search(
+                        r'National Account Discount.*?\$([0-9.]+)',
+                        tag.text, re.DOTALL
+                    )
+                    w_act_m_disc = float(m.group(1)) if m else 0.0
+                    # this non-zero offset will be used to adjust account
+                    # holder's total monthly charge
                     offset = w_act_m - w_act_m_disc
+
                 m = re.search(
-                    'Total {}.*?\$([0-9.]+)'.format(charge_type_text),
-                    elem.text,
+                    r'Total {}.*?\$([0-9.]+)'.format(charge_type_text),
+                    tag.text,
                     flags=re.DOTALL
                 )
                 charge_total = float(m.group(1)) - offset
@@ -439,54 +255,52 @@ class AttBillSpliter(object):
                     charge_category=wireless_charge_category
                 )
                 # Charge
-                try:
-                    new_charge = Charge(
-                        user=account_holder,
-                        charge_type=charge_type,
-                        billing_cycle=billing_cycle,
-                        amount=charge_total
-                    )
-                    new_charge.save()
-                except IntegrityError:
-                    logger.warning(
-                        'Trying to write duplicate charge record!\n%s',
-                        new_charge.__dict__
-                    )
-        else:
-            raise ParsingError('No charges found for account holder.')
+                new_charge = Charge(
+                    user=account_holder,
+                    charge_type=charge_type,
+                    billing_cycle=billing_cycle,
+                    amount=charge_total
+                )
+                new_charge.save()
+                offset = 0.0
 
         # iterate regular users
         for user in users[1:]:
-            charge_total = 0
-            charge_elems = self.browser.find_elements_by_xpath(
-                "//div[starts-with(@class, 'accSummary') and "
-                "preceding-sibling::{} and following-sibling::{}]".format(
-                    beginning_div_xpath.format(
-                        name=user.name, num=user.number
-                    ),
-                    end_div_xpath.format(num=user.number)
-                )
-            )
-            for elem in charge_elems:
-                charge_type_text = elem.find_element_by_xpath("div[1]").text
-                if charge_type_text.startswith('Monthly Charges'):
-                    charge_type_text = 'Monthly Charges'
-                m = re.search(
-                    'Total {}.*?\$([0-9.]+)'.format(charge_type_text),
-                    elem.text,
-                    flags=re.DOTALL
-                )
-                charge_total = float(m.group(1)) - offset
-                # save data to db
-                charge_type_name = slugify(charge_type_text)
-                # ChargeType
-                charge_type, _ = ChargeType.get_or_create(
-                    type=charge_type_name,
-                    text=charge_type_text,
-                    charge_category=wireless_charge_category
-                )
-                # Charge
-                try:
+            charge_total = 0.0
+            name, number = user.name, user.number
+            # charge section starts with user name followed by his/her number
+            target = soup.find('div',
+                               string=re.compile('{} {}'.format(name, number)))
+            for tag in target.parent.next_siblings:
+                # all charge data are in divs
+                if not isinstance(tag, Tag) or tag.name != 'div':
+                    continue
+
+                # charge section ends with Total for number
+                if 'Total for {}'.format(number) in tag.text:
+                    break
+
+                # each charge type has 'accSummary' as one of its css classes
+                if 'accSummary' in tag.get('class', []):
+                    charge_type_text = tag.find('div').text.strip('\n\t')
+                    if charge_type_text.startswith('Monthly Charges'):
+                        charge_type_text = 'Monthly Charges'
+
+                    m = re.search(
+                        r'Total {}.*?\$([0-9.]+)'.format(charge_type_text),
+                        tag.text,
+                        flags=re.DOTALL
+                    )
+                    charge_total = float(m.group(1))
+                    # save data to db
+                    charge_type_name = slugify(charge_type_text)
+                    # ChargeType
+                    charge_type, _ = ChargeType.get_or_create(
+                        type=charge_type_name,
+                        text=charge_type_text,
+                        charge_category=wireless_charge_category
+                    )
+                    # Charge
                     new_charge = Charge(
                         user=user,
                         charge_type=charge_type,
@@ -494,19 +308,13 @@ class AttBillSpliter(object):
                         amount=charge_total
                     )
                     new_charge.save()
-                except IntegrityError:
-                    logger.warning(
-                        'Trying to write duplicate charge record!\n%s',
-                        new_charge.__dict__
-                    )
             if charge_total > 0:
                 charged_users.append(user)
 
-        # update share of account monthly charges for each line
+        # update share of account monthly charges for each user
         # also calculate total wireless charges (for verification later)
         act_m_share = (w_act_m - w_act_m_disc) / len(charged_users)
         wireless_total = 0
-
         for user in charged_users:
             # ChargeType
             charge_type, _ = ChargeType.get_or_create(
@@ -515,117 +323,64 @@ class AttBillSpliter(object):
                 charge_category=wireless_charge_category
             )
             # Charge
-            try:
-                new_charge = Charge(
-                    user=user,
-                    charge_type=charge_type,
-                    billing_cycle=billing_cycle,
-                    amount=act_m_share
-                )
-                new_charge.save()
-            except IntegrityError:
-                logger.warning(
-                    'Trying to write duplicate charge record!\n%s',
-                    new_charge.__dict__
-                )
-            else:
-                user_total = Charge.select(
-                    pw.fn.Sum(Charge.amount).alias('total')
-                ).join(
-                    ChargeType,
-                    on=Charge.charge_type_id == ChargeType.id
-                ).where(
-                    (Charge.user == user),
-                    Charge.billing_cycle == billing_cycle,
-                    ChargeType.charge_category == wireless_charge_category
-                )
-                wireless_total += user_total[0].total
-        # now that we have wireless_total calculated from user charges
-        # let's compare if it matches with what the bill says
-        wireless_total_elem = self.browser.find_element_by_xpath(
-            "//div[preceding-sibling::"
-            "div[contains(text(), 'Total Wireless Charges')]]"
-        )
-        bill_wireless_total = float(wireless_total_elem.text.strip('$'))
-        if abs(bill_wireless_total - wireless_total) > 0.01:
-            raise CalculationError(
-                'Wireless total calculated does not match with the bill'
+            new_charge = Charge(
+                user=user,
+                charge_type=charge_type,
+                billing_cycle=billing_cycle,
+                amount=act_m_share
             )
-        logger.info('Wireless charges calculation results verified.')
-        # aggregate monthly charges
+            new_charge.save()
+            user_total = Charge.select(
+                pw.fn.Sum(Charge.amount).alias('total')
+            ).join(
+                ChargeType,
+                on=Charge.charge_type_id == ChargeType.id
+            ).where(
+                (Charge.user == user),
+                Charge.billing_cycle == billing_cycle,
+                ChargeType.charge_category == wireless_charge_category
+            )
+            wireless_total += user_total[0].total
+
+        # aggregate
         aggregate_wireless_monthly(billing_cycle)
-        logger.info('Wireless charges aggregated %s.', billing_cycle_name)
-        logger.info('Finished procesessing bill %s.', billing_cycle_name)
 
-    def run(self, cycle_lags):
-        """Login to AT&T billing page, parse previous bills and store data
-        in database.
-
-        param cycle_lags: lags of billing cycles for which you want to parse
-            the bill. For example, 1 refers to last billing cycle (not current)
-            and 5 refers to the one from 5 months ago. Currently it does
-            not support parsing the most recent (current) bill, as AT&T uses
-            a different page design for current bill. lags have to be positive
-            integers.
-        type cycle_lags: iterable
+    def run(self, lag, force):
+        """
+        :param lag: a list of lags indicating which bills to split
+        :type lag: list
+        :param force: a flag to force splitting the bill
+        :type force: bool
         """
         self.login()
-        self.go_to_history_bills()
-        wait = WebDriverWait(self.browser, PAGE_LOADING_WAIT_S)
-        previous_bill_elems = wait.until(
-            EC.presence_of_all_elements_located(
-                (By.XPATH, "//td[@headers='view_bill']")
-            )
-        )
-        # previous_bill_elems = self.browser.find_elements_by_xpath(
-        #     "//td[@headers='view_bill']"
-        # )
-        for lag in cycle_lags:
-            elem = previous_bill_elems[lag]
-            elem.find_element_by_class_name('wt_Body').click()
-            # billing page will be opened in a new window
-            current_window = self.browser.current_window_handle
-            self.browser.switch_to.window(self.browser.window_handles[-1])
-            try:
-                wait.until(
-                    EC.presence_of_element_located(
-                        (By.XPATH, "//h2[contains(text(), 'Account Details')]")
-                    )
-                )
-                logger.info('No popup window detected.')
-            except TimeoutException:
-                # most likely there is a popup window
-                self.try_click_no_on_popup()
-            # sanity check
-            try:
-                self.browser.find_element_by_xpath(
-                    "//h2[contains(text(), 'Account Details')]"
-                )
-            except NoSuchElementException:
-                raise UrlError(
-                    'Unable to locate the bill, maybe page took too long '
-                    'to load, or failed to close popup window. Please retry.'
-                )
-            else:
-                logger.info('Billing detail page sanity check passed.')
-            self.split_previous_bill()
-            self.browser.switch_to.window(current_window)
-        self.browser.quit()
-        logger.info('Browser closed.')
+        for i, (bc_name, bill_link) in enumerate(self.get_history_bills()):
+            # if lag is not empty, only split bills specified
+            if lag and (i not in lag) and not force:
+                continue
+
+            # check if billing cycle already exist
+            if BillingCycle.select().where(
+                    BillingCycle.name == bc_name
+            ):
+                print('Billing Cycle {} already processed.'.format(bc_name))
+                continue
+
+            print('Start splitting bill {}...'.format(bc_name))
+            self.split_bill(bc_name, bill_link)
+            print('Finished splitting bill {}.'.format(bc_name))
 
 
 @click.command()
-@click.argument('lags', nargs=-1, type=int)
-def run_split_bill(lags):
-    """Parse the website, split the bill and store data in database.
-
-    LAGS: lags between the bills you want to parse and the last
-        posted bill.
-    :type lags: list
-    """
-    # create table if not exists
+@click.option('--lag', '-l', multiple=True, type=int)
+@click.option('--force', '-f', default=False)
+@click.option('--username', prompt='\U0001F464  AT&T Username')
+@click.option('--password', prompt='\U0001F5DD  AT&T Password',
+              hide_input=True)
+def run_split_bill(username, password, lag, force):
     create_tables_if_not_exist()
-    # split
-    bill_splitter = AttBillSpliter()
-    bill_splitter.run(lags)
-    db.close()
+    splitter = AttBillSplitter(username, password)
+    splitter.run(lag, force)
+
+
+if __name__ == '__main__':
+    run_split_bill()

@@ -2,11 +2,6 @@
 """Exceptions used in main module."""
 
 from peewee import IntegrityError
-from selenium.common.exceptions import (
-    NoSuchElementException,
-    TimeoutException,
-    WebDriverException
-)
 
 
 class BaseError(Exception):
@@ -33,6 +28,5 @@ class CalculationError(BaseError):
     pass
 
 
-__all__ = ['NoSuchElementException', 'TimeoutException', 'WebDriverException',
-           'ConfigError', 'UrlError', 'LoginError', 'ParsingError',
+__all__ = ['ConfigError', 'UrlError', 'LoginError', 'ParsingError',
            'CalculationError', 'IntegrityError']
