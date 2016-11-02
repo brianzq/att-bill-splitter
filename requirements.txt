@@ -1,4 +1,0 @@
-peewee==2.8.4
-python-slugify==1.2.1
-selenium==2.53.6
-Unidecode==0.4.19
