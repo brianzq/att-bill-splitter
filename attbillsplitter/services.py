@@ -45,7 +45,7 @@ def print_wireless_monthly_summary(month, year=None):
         db.extract_date('month', BillingCycle.end_date) == month,
         db.extract_date('year', BillingCycle.end_date) == year
     ).get()
-    print('--------------------------------------------------------------')
+    print('\n--------------------------------------------------------------')
     print('    Charge Summary for Billing Cycle {}'.format(bc.name))
     print('--------------------------------------------------------------')
     query = (
@@ -64,7 +64,7 @@ def print_wireless_monthly_summary(month, year=None):
         ))
         wireless_total += user.total
     print('--------------------------------------------------------------')
-    print('{:>47}: {:.2f}'.format('Wireless Total', wireless_total))
+    print('{:>47}: {:.2f}\n'.format('Wireless Total', wireless_total))
 
 
 def print_wireless_monthly_details(month, year=None):
@@ -112,6 +112,7 @@ def print_wireless_monthly_details(month, year=None):
     current_user_num = ''
     current_user_total = 0
     wireless_total = 0
+    print('')
     for user in query.execute():
         if user.number != current_user_num:
             if current_user_total:
@@ -125,7 +126,8 @@ def print_wireless_monthly_details(month, year=None):
         current_user_total += user.total
     if current_user_total:
         print('      - {:40}   {:.2f}\n'.format('Total', current_user_total))
-    print('{:>48}: {:.2f}'.format('Wireless Total', wireless_total))
+        wireless_total += current_user_total
+    print('{:>48}: {:.2f}\n'.format('Wireless Total', wireless_total))
 
 
 def notify_users_monthly_details(message_client, payment_msg, month,
@@ -179,6 +181,7 @@ def notify_users_monthly_details(message_client, payment_msg, month,
     current_user_total = 0
     messages = {}
     message = ''
+    print('')
     for user in query.execute():
         if user.number != current_user_num:
             if current_user_total:
@@ -232,7 +235,10 @@ class MessageClient(object):
 @click.argument('month', type=int)
 @click.option('-y', '--year', type=int)
 def run_print_summary(month, year):
-    """Take arguments from command line and run print_wireless_monthly_summary
+    """Print monthly charge summary for each user. MONTH refers to the month
+    of the end date of the billing cycle. It should be an integer from 1 to
+    12. You can also specify YEAR (in 4 digits). By default, YEAR is set to
+    current calendar year.
     """
     print_wireless_monthly_summary(month, year)
 
@@ -241,7 +247,10 @@ def run_print_summary(month, year):
 @click.argument('month', type=int)
 @click.option('-y', '--year', type=int)
 def run_print_details(month, year):
-    """Take arguments from command line and run print_wireless_monthly_details
+    """Print monthly charge details for each user. MONTH refers to the month
+    of the end date of the billing cycle. It should be an integer from 1 to
+    12. You can also specify YEAR (in 4 digits). By default, YEAR is set to
+    current calendar year.
     """
     print_wireless_monthly_details(month, year)
 
@@ -250,7 +259,11 @@ def run_print_details(month, year):
 @click.argument('month', type=int)
 @click.option('-y', '--year', type=int)
 def run_notify_users(month, year):
-    """Take arguments from command line and run notify_users_monthly_details
+    """Send monthly charge details to each user via SMS. For each user, you
+    will first be shown his charge details, then you can decide whether you
+    want to notify him/her. MONTH refers to the month of the end date of the
+    billing cycle. It should be an integer from 1 to 12. You can also specify
+    YEAR (in 4 digits). By default, YEAR is set to current calendar year.
     """
     mc = MessageClient()
     payment_msg = utils.load_payment_msg()

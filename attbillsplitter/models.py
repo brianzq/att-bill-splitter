@@ -14,8 +14,13 @@ class BaseModel(Model):
 
 class User(BaseModel):
     name = CharField()
-    number = CharField(unique=True)
+    number = CharField()
     created_at = DateTimeField(constraints=[SQL("DEFAULT (datetime('now'))")])
+
+    class Meta:
+        indexes = (
+            (('name', 'number'), True),
+        )
 
 
 class ChargeCategory(BaseModel):
