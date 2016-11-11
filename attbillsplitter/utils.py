@@ -6,23 +6,8 @@ import os
 
 CONFIG_PATH = os.path.expanduser('~/.attbillsplitter.conf')
 PAGE_LOADING_WAIT_S = 10
-
-
-def load_project_path():
-    """Load project path from ~/.attbillsplitter.conf"""
-    config = configparser.ConfigParser()
-    config.read(CONFIG_PATH)
-    try:
-        return config['settings']['project_path']
-    except KeyError:
-        print('Config files not found. Please reinstall package by running '
-              'python3 setup.py install')
-
-
-PROJECT_PATH = load_project_path()
-CHROMEDRIVER_PATH = os.path.join(PROJECT_PATH, 'chromedriver')
-DATABASE_PATH = os.path.join(PROJECT_PATH, 'att_bill.db')
-LOG_PATH = os.path.join(PROJECT_PATH, 'notif_history.log')
+DATABASE_PATH = 'att_bill.db'
+LOG_PATH = 'notif_history.log'
 
 
 def initialize_twiolio():
