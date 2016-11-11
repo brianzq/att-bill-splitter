@@ -24,7 +24,7 @@ This is the first thing you run. You will be prompted to input your AT&T usernam
 ```
 For example,
 ```
-(att) [att-bill-splitter] att-split-bill
+[att-bill-splitter] att-split-bill
 👤  AT&T Username: your_user_name
 🗝  AT&T Password:
 Login started...
