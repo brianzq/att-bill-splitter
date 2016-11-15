@@ -1,13 +1,21 @@
 # -*- coding:utf-8 -*-
-"""Utility methods."""
+"""Utility methods"""
 
-import configparser
+from __future__ import unicode_literals, print_function
+from builtins import input
+try:
+    import configparser
+except:
+    import ConfigParser as configparser
 import os
+import sys
+import warnings
 
 CONFIG_PATH = os.path.expanduser('~/.attbillsplitter.conf')
 PAGE_LOADING_WAIT_S = 10
 DATABASE_PATH = 'att_bill.db'
 LOG_PATH = 'notif_history.log'
+warnings.simplefilter('ignore')
 
 
 def initialize_twiolio():
@@ -19,10 +27,10 @@ def initialize_twiolio():
     auth_token = input('Twilio Authentication Token: ')
     config = configparser.ConfigParser()
     config.read(CONFIG_PATH)
-    config['twilio'] = {}
-    config['twilio']['number'] = number
-    config['twilio']['account_sid'] = account_sid
-    config['twilio']['auth_token'] = auth_token
+    config.add_section('twilio')
+    config.set('twilio', 'number', number)
+    config.set('twilio', 'account_sid', account_sid)
+    config.set('twilio', 'auth_token', auth_token)
     with open(CONFIG_PATH, 'w') as configfile:
         config.write(configfile)
     print('\U00002705  Twilio account added.')
@@ -38,8 +46,10 @@ def load_twilio_config():
         initialize_twiolio()
         config.read(CONFIG_PATH)
 
-    twilio = config['twilio']
-    return (twilio['number'], twilio['account_sid'], twilio['auth_token'])
+    number = config.get('twilio', 'number')
+    account_sid = config.get('twilio', 'account_sid')
+    auth_token = config.get('twilio', 'auth_token')
+    return (number, account_sid, auth_token)
 
 
 def initialize_payment_msg():
@@ -52,8 +62,8 @@ def initialize_payment_msg():
     message = input(prompt_msg)
     config = configparser.ConfigParser()
     config.read(CONFIG_PATH)
-    config['message'] = {}
-    config['message']['payment'] = message
+    config.add_section('message')
+    config.set('message', 'payment', message)
     with open(CONFIG_PATH, 'w') as configfile:
         config.write(configfile)
     print('\U00002705  Payment message saved.')
@@ -65,15 +75,21 @@ def load_payment_msg():
     config.read(CONFIG_PATH)
     # initialize twilio if not yet initialized
     if ('message' not in config.sections() or
-            'payment' not in config['message']):
+            'payment' not in [t for (t, _) in config.items('message')]):
         initialize_payment_msg()
         config.read(CONFIG_PATH)
 
     else:
-        message = config['message']['payment']
-        reset = input('\U00002753  Do you want to keep using the following '
-                      'message: \n{}\n(y/n)? '.format(message))
+        message = config.get('message', 'payment')
+        prompt = ('\U00002753  Do you want to keep using the following '
+                  'message: \n{}\n(y/n)? '.format(message))
+        try:
+            # python3
+            reset = input(prompt)
+        except UnicodeEncodeError:
+            # python2
+            reset = input(prompt.encode(sys.stdout.encoding))
         if reset in ('n', 'N', 'no', 'No', 'No'):
             initialize_payment_msg()
             config.read(CONFIG_PATH)
-    return config['message']['payment']
+    return config.get('message', 'payment')

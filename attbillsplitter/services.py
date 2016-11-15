@@ -2,16 +2,20 @@
 """Service that aggregate monthly wireless charges for each line in account.
 """
 
+from __future__ import print_function, unicode_literals
+from builtins import input
 import datetime as dt
 import logging
 import click
 import peewee as pw
+import warnings
 import attbillsplitter.utils as utils
 from twilio.rest import TwilioRestClient
 from attbillsplitter.models import (
     User, ChargeCategory, ChargeType, BillingCycle, Charge, MonthlyBill, db
 )
 
+warnings.simplefilter('ignore')
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 ch = logging.FileHandler(utils.LOG_PATH)

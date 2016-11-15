@@ -5,13 +5,17 @@ from setuptools import find_packages, setup
 
 setup(
     name='att-bill-splitter',
-    description='Parse AT&T bill and split wireless charges among users.',
+    # packages=['att-bill-splitter'],
     version='0.1',
+    description='Parse AT&T bill and split wireless charges among users.',
     author='Brian Zhang',
     author_email='leapingzhang@gmail.com',
+    url='https://github.com/brianzq/att-bill-splitter',
+    # download_url=''
     install_requires=[
         'beautifulsoup4==4.5.1',
         'click>=6.6',
+        'future>=0.16.0',
         'lxml==3.6.4',
         'peewee>=2.8.4',
         'python-slugify>=1.2.1',

@@ -1,4 +1,7 @@
+# -*- coding:utf-8 -*-
+"""Main module"""
 
+from __future__ import print_function, unicode_literals
 import datetime as dt
 import re
 import click
