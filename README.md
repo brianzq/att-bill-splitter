@@ -1,46 +1,64 @@
 # att-bill-splitter
 
-Are you an AT&T account holder for multiple wireless lines and tired of manually splitting the bill, typing every entry into a spreadsheet and sending each of them a custom text message every month? Now you can automate all of that with this application. It requires little setup and is straightforward to use even if you have little experience with command line tools.
+Are you an AT&T account holder for multiple wireless lines and tired of manually splitting the bill, typing every entry into a spreadsheet and sending each of them a custom text message every month? Now you can automate all of that with this application.
 
 ## Overview
 
-This package is written in Python and uses requests and beautifulsoup4 to login your AT&T account and parse the bills. peewee is used as the ORM and data are stored in a Sqlite database. It also has twilio integration to send auto-generated monthly billing details to each user.
+This package is written in Python (works with both Python 2 and 3) and uses requests and beautifulsoup4 to login your AT&T account and parse the bills. peewee is used as the ORM and data are stored in a Sqlite database. Command line interface is built with click. It also has twilio integration to send auto-generated monthly billing details to each user.
 
 ## Installation
+### via pip 
+```
+[~] pip install att-bill-splitter
+```
+### via source code
 ```
 [~] git clone https://github.com/brian-ds/att-bill-splitter.git
 [~] cd att-bill-splitter
-[att-bill-splitter] python setup.py install
+[att-bill-splitter] pip install .
 ```
 All set! Just that simple!
 
 *I would recommed using a virtualenv to isolate all the dependencies of this application from your local packages.*
 
 ## Quick Start
-### Parse and Split All your Bills
-This is the first thing you run. You will be prompted to input your AT&T username and password (within terminal). Once logged in, it will start parsing your history bills, splitting them and storing data to database.
+### Parse and Split Your Bills
+This is the first thing you run. You will be prompted to input your AT&T username and password (within terminal). Once logged in, it will start parsing your previous bills, splitting them and storing data to database.
 ```
 [att-bill-splitter] att-split-bill
 ```
 For example,
 ```
 [att-bill-splitter] att-split-bill
-👤  AT&T Username: your_user_name
+👤  AT&T Username: your_att_username
 🗝  AT&T Password:
-Login started...
-Start splitting bill Sep 15 - Oct 14, 2016...
-Finished splitting bill Sep 15 - Oct 14, 2016.
-Start splitting bill Aug 15 - Sep 14, 2016...
-Finished splitting bill Aug 15 - Sep 14, 2016.
-Start splitting bill Jul 15 - Aug 14, 2016...
-Finished splitting bill Jul 15 - Aug 14, 2016.
-Start splitting bill Jun 15 - Jul 14, 2016...
-Finished splitting bill Jun 15 - Jul 14, 2016.
-Start splitting bill May 15 - Jun 14, 2016...
-Finished splitting bill May 15 - Jun 14, 2016.
+▶  Login started...
+✅  Login succeeded.
+🏃  Start splitting bill Sep 15 - Oct 14, 2016...
+🏁  Finished splitting bill Sep 15 - Oct 14, 2016.
+🏃  Start splitting bill Aug 15 - Sep 14, 2016...
+🏁  Finished splitting bill Aug 15 - Sep 14, 2016.
+🏃  Start splitting bill Jul 15 - Aug 14, 2016...
+🏁  Finished splitting bill Jul 15 - Aug 14, 2016.
+🏃  Start splitting bill Jun 15 - Jul 14, 2016...
+🏁  Finished splitting bill Jun 15 - Jul 14, 2016.
+🏃  Start splitting bill May 15 - Jun 14, 2016...
+🏁  Finished splitting bill May 15 - Jun 14, 2016.
+🏃  Start splitting bill Apr 15 - May 14, 2016...
+🏁  Finished splitting bill Apr 15 - May 14, 2016.
 ...
 ```
-Sometimes promotion or survey window pops up on AT&T web pages. If you got any elements not found error, you might be able to resolve it by manually logging in to your account in a browser, clicking No on the popup window before you rerun `att-split-bill`.
+By default it parses all your previous bills. If you want to select a few bills to parse, you can use `-l` option. The value of the option is the lag of the bill compared to the most recent one. So `0` refers to the most recent bill, `1` is one month before that and so on. For example,
+```
+[att-bill-splitter] att-split-bill -l 0
+👤  AT&T Username: your_att_username
+🗝  AT&T Password:
+▶  Login started...
+✅  Login succeeded.
+🏃  Start splitting bill Sep 15 - Oct 14, 2016...
+🏁  Finished splitting bill Sep 15 - Oct 14, 2016.
+```
+You can supply mutiple `-l` options at once too.
 
 ### View Monthly Charges Summary for Users
 After you parsed the bills, you can view them in your terminal. The command below will print the monthly summary for each user.
@@ -77,7 +95,7 @@ You can also view itemized charge details for each user.
 
 For example,
 ```
-(venv) [att-bill-splitter] att-print-details 8 -y 2016
+[att-bill-splitter] att-print-details 8 -y 2016
 
     USER_NAME_1 (415-555-0001)
       - Monthly Charges                            15.00
