@@ -1,16 +1,16 @@
 # att-bill-splitter
 
-Are you an AT&T account holder for multiple wireless lines and tired of manually splitting the bill, typing every entry into a spreadsheet and sending each of them a custom text message every month? Now you are lucky because this little application automates all of that and all you need to do is a press of button. It requires very little setup and is straightforward enough to use even if you have little experience with command line tools.
+Are you an AT&T account holder for multiple wireless lines and tired of manually splitting the bill, typing every entry into a spreadsheet and sending each of them a custom text message every month? Now you can automate all of that with this application. It requires little setup and is straightforward to use even if you have little experience with command line tools.
 
 ## Overview
 
-This package is written in Python3 and uses requests and beautifulsoup4 to login your AT&T account and parse the bills. peewee is used as the ORM and data are stored in a Sqlite database. It also has twilio integration to send auto-generated monthly billing details to each user.
+This package is written in Python and uses requests and beautifulsoup4 to login your AT&T account and parse the bills. peewee is used as the ORM and data are stored in a Sqlite database. It also has twilio integration to send auto-generated monthly billing details to each user.
 
 ## Installation
 ```
 [~] git clone https://github.com/brian-ds/att-bill-splitter.git
 [~] cd att-bill-splitter
-[att-bill-splitter] python3 setup.py install
+[att-bill-splitter] python setup.py install
 ```
 All set! Just that simple!
 
@@ -20,7 +20,7 @@ All set! Just that simple!
 ### Parse and Split All your Bills
 This is the first thing you run. You will be prompted to input your AT&T username and password (within terminal). Once logged in, it will start parsing your history bills, splitting them and storing data to database.
 ```
-[att-bill-splitter]att-split-bill
+[att-bill-splitter] att-split-bill
 ```
 For example,
 ```
