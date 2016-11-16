@@ -21,23 +21,31 @@ warnings.simplefilter('ignore')
 def initialize_twiolio():
     """Initialize twilio credentials from command line input and save in
     config file.
+
+    :returns: None
     """
     number = input('Twilio Number (e.g. +11234567890): ')
     account_sid = input('Twilio Account SID: ')
     auth_token = input('Twilio Authentication Token: ')
     config = configparser.ConfigParser()
     config.read(CONFIG_PATH)
+    if config.remove_section('twilio'):
+        print('\U00002B55  Old twilio credentials removed.')
+
     config.add_section('twilio')
     config.set('twilio', 'number', number)
     config.set('twilio', 'account_sid', account_sid)
     config.set('twilio', 'auth_token', auth_token)
     with open(CONFIG_PATH, 'w') as configfile:
         config.write(configfile)
-    print('\U00002705  Twilio account added.')
+    print('\U00002705  New twilio account added.')
 
 
 def load_twilio_config():
     """Load twilio credentials. Prompt to initialize if not yet initialized.
+
+    :returns: a tuple of twilio number, sid and auth token
+    :rtype: tuple
     """
     config = configparser.ConfigParser()
     config.read(CONFIG_PATH)
@@ -55,6 +63,8 @@ def load_twilio_config():
 def initialize_payment_msg():
     """Initialize payment message to be appended to the charging details
     before sending to users (generally a mesaage to tell users how to pay you).
+
+    :returns: None
     """
     prompt_msg = ('You can enter a short message to put after the charge '
                   'details to send to your users. (For example, letting your '
@@ -62,15 +72,21 @@ def initialize_payment_msg():
     message = input(prompt_msg)
     config = configparser.ConfigParser()
     config.read(CONFIG_PATH)
+    if config.remove_section('message'):
+        print('\U00002B55  Old payment message removed.')
     config.add_section('message')
     config.set('message', 'payment', message)
     with open(CONFIG_PATH, 'w') as configfile:
         config.write(configfile)
-    print('\U00002705  Payment message saved.')
+    print('\U00002705  New payment message saved.')
 
 
 def load_payment_msg():
-    """Load payment message. Prompt to initialize if not yet initialized."""
+    """Load payment message. Prompt to initialize if not yet initialized.
+
+    :returns: payment message cached in config file
+    :rtype: str
+    """
     config = configparser.ConfigParser()
     config.read(CONFIG_PATH)
     # initialize twilio if not yet initialized

@@ -11,6 +11,7 @@ import peewee as pw
 import warnings
 import attbillsplitter.utils as utils
 from twilio.rest import TwilioRestClient
+from twilio.exceptions import TwilioException
 from attbillsplitter.models import (
     User, ChargeCategory, ChargeType, BillingCycle, Charge, MonthlyBill, db
 )
@@ -219,9 +220,17 @@ def notify_users_monthly_details(message_client, payment_msg, month,
 class MessageClient(object):
     """Twilio message client that sends text message to users."""
     def __init__(self):
-        number, account_sid, auth_token = utils.load_twilio_config()
-        self.number = number
-        self.twilio_client = TwilioRestClient(account_sid, auth_token)
+        try:
+            number, account_sid, auth_token = utils.load_twilio_config()
+            self.number = number
+            self.twilio_client = TwilioRestClient(account_sid, auth_token)
+        except TwilioException:
+            print('\U0001F6AB  Current twilio credentials invalid. '
+                  'Please reset.')
+            utils.initialize_twiolio()
+            number, account_sid, auth_token = utils.load_twilio_config()
+            self.number = number
+            self.twilio_client = TwilioRestClient(account_sid, auth_token)
 
     def send_message(self, body, to):
         """Send message body from self.number to a phone number.

@@ -64,7 +64,7 @@ def aggregate_wireless_monthly(bc):
     :returns: None
     """
     if MonthlyBill.select().where(MonthlyBill.billing_cycle == bc).exists():
-        print('Charges already aggregated for {}'.format(bc.name))
+        print('\U000026A0  Charges already aggregated for {}'.format(bc.name))
         return
 
     query = (
@@ -101,7 +101,12 @@ class AttBillSplitter(object):
         self.session.headers.update(headers)
 
     def login(self):
-        print('Login started...')
+        """Login to your AT&T online account.
+
+        :returns: status of the login (True or False)
+        :rtype: bool
+        """
+        print('\U000025B6  Login started...')
         login_url = (
             'https://myattdx05.att.com/commonLogin/igate_wam/multiLogin.do'
         )
@@ -116,9 +121,27 @@ class AttBillSplitter(object):
         form.update({'userid': self.username, 'password': self.password})
         login_submit = self.session.post(login_url, data=form)
         if 'Your total balance is:' in login_submit.text:
-            print('Login succeeded.')
+            print('\U00002705  Login succeeded.')
+            return True
+
+        else:
+            if 'promo' in login_submit.url.lower():
+                print ('\U0001F534  Popup window detected during login. '
+                       'Please login you account in a browser and click '
+                       'through. Log out your account before you retry. '
+                       '(Sometimes you might have to do this multiple times.')
+                return False
+
+            print('\U0001F6AB  Login failed. Please check your username and '
+                  'password and retry. Or something unexpected happened.')
+            return False
 
     def get_history_bills(self):
+        """Get history bills.
+
+        :yields: tuple of billing_cycle name and link to the bill
+        """
+
         # this request will add some cookie
         self.session.get(
             'https://www.att.com/olam/passthroughAction.myworld',
@@ -162,6 +185,7 @@ class AttBillSplitter(object):
 
         :returns: list of user objects
         :rtype: list
+        :returns: None
         """
         users = []
         soup = BeautifulSoup(bill_html, 'html.parser')
@@ -184,6 +208,7 @@ class AttBillSplitter(object):
         :type bc_name: str
         :param bill_link: url to bill
         :type bc_name: str
+        :returns: None
         """
         bill_req = self.session.get(bill_link)
         bill_html = bill_req.text
@@ -354,8 +379,11 @@ class AttBillSplitter(object):
         :type lag: list
         :param force: a flag to force splitting the bill
         :type force: bool
+        :returns: None
         """
-        self.login()
+        if not self.login():
+            return
+
         for i, (bc_name, bill_link) in enumerate(self.get_history_bills()):
             # if lag is not empty, only split bills specified
             if lag and (i not in lag) and not force:
@@ -365,12 +393,13 @@ class AttBillSplitter(object):
             if BillingCycle.select().where(
                     BillingCycle.name == bc_name
             ):
-                print('Billing Cycle {} already processed.'.format(bc_name))
+                print('\U000026A0  Billing Cycle {} already '
+                      'processed.'.format(bc_name))
                 continue
 
-            print('Start splitting bill {}...'.format(bc_name))
+            print('\U0001F3C3  Start splitting bill {}...'.format(bc_name))
             self.split_bill(bc_name, bill_link)
-            print('Finished splitting bill {}.'.format(bc_name))
+            print('\U0001F3C1  Finished splitting bill {}.'.format(bc_name))
 
 
 @click.command()
