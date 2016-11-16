@@ -107,7 +107,7 @@ class AttBillSplitter(object):
         )
         # obtain session cookies needed to login
         pre_login = self.session.get(login_url)
-        soup = BeautifulSoup(pre_login.text, 'lxml')
+        soup = BeautifulSoup(pre_login.text, 'html.parser')
         hidden_inputs = soup.find_all('input', type='hidden')
         form = {
             x.get('name'): x.get('value')
@@ -129,7 +129,7 @@ class AttBillSplitter(object):
             'https://www.att.com/olam/acctInfoView.myworld',
             params={'actionEvent': 'displayProfileInformation'}
         )
-        an_soup = BeautifulSoup(an_req.text, 'lxml')
+        an_soup = BeautifulSoup(an_req.text, 'html.parser')
         act_num_tag = an_soup.find('li', class_='account-number')
         m = re.search(r'.?(\d+).?', act_num_tag.text, re.DOTALL)
         if not m:
@@ -142,7 +142,7 @@ class AttBillSplitter(object):
             params={'action': 'ViewBillHistory'}
         )
         bh_req.raise_for_status()
-        bh_soup = BeautifulSoup(bh_req.text, 'lxml')
+        bh_soup = BeautifulSoup(bh_req.text, 'html.parser')
         bc_tags = bh_soup.find_all('td', headers=['bill_period'])
         bill_link_template = (
             'https://www.att.com/olam/billPrintPreview.myworld?'
@@ -164,7 +164,7 @@ class AttBillSplitter(object):
         :rtype: list
         """
         users = []
-        soup = BeautifulSoup(bill_html, 'lxml')
+        soup = BeautifulSoup(bill_html, 'html.parser')
         number_tags = soup.find_all('div', string=re.compile('Total for'))
         for num_tag in number_tags:
             number = num_tag.text.lstrip('Total for')
@@ -190,7 +190,7 @@ class AttBillSplitter(object):
         if 'Account Details' not in bill_html:
             raise ParsingError('Failed to retrieve billing page')
 
-        soup = BeautifulSoup(bill_html, 'lxml')
+        soup = BeautifulSoup(bill_html, 'html.parser')
         start_date, end_date = get_start_end_date(bc_name)
         billing_cycle = BillingCycle.create(name=bc_name,
                                             start_date=start_date,

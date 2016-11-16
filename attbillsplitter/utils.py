@@ -1,7 +1,7 @@
 # -*- coding:utf-8 -*-
 """Utility methods"""
 
-from __future__ import unicode_literals, print_function
+from __future__ import print_function, unicode_literals
 from builtins import input
 try:
     import configparser

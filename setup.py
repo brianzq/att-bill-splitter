@@ -16,7 +16,7 @@ setup(
         'beautifulsoup4==4.5.1',
         'click>=6.6',
         'future>=0.16.0',
-        'lxml==3.6.4',
+        # 'lxml==3.6.4',
         'peewee>=2.8.4',
         'python-slugify>=1.2.1',
         'requests==2.11.1',
