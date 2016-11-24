@@ -1,4 +1,4 @@
-# -*- coding:utf-8 -*-
+# -*- coding: utf-8 -*-
 """Main module"""
 
 from __future__ import print_function, unicode_literals
@@ -111,15 +111,30 @@ class AttBillSplitter(object):
             'https://myattdx05.att.com/commonLogin/igate_wam/multiLogin.do'
         )
         # obtain session cookies needed to login
-        pre_login = self.session.get(login_url)
-        soup = BeautifulSoup(pre_login.text, 'html.parser')
-        hidden_inputs = soup.find_all('input', type='hidden')
+        self.session.get(login_url)
+        # soup = BeautifulSoup(pre_login.text, 'html.parser')
+        # hidden_inputs = soup.find_all('input', type='hidden')
+        # form = {
+        #     x.get('name'): x.get('value')
+        #     for x in hidden_inputs if x.get('value') and x.get('name')
+        # }
+
+        # this information is in a comment tag and is very difficult to parse
+        # hard code this for now
         form = {
-            x.get('name'): x.get('value')
-            for x in hidden_inputs if x.get('value') and x.get('name')
+            'source': 'MYATT',
+            'flow_ind': 'LGN',
+            'isSlidLogin': 'true',
+            'vhname': 'www.att.com',
+            'urlParameters': ('fromdlom=true&reportActionEvent=A_LGN_LOGIN_SUB'
+                              '&loginSource=olam'),
+            'myATTIntercept': 'false',
+            'persist': 'Y',
+            'rootPath': '/olam/English'
         }
         form.update({'userid': self.username, 'password': self.password})
         login_submit = self.session.post(login_url, data=form)
+        open('test2.html', 'w').write(login_submit.text.encode('utf-8'))
         if 'Your total balance is:' in login_submit.text:
             print('\U00002705  Login succeeded.')
             return True
@@ -227,9 +242,9 @@ class AttBillSplitter(object):
             return
 
         account_holder = users[0]
-        # ---------------------------------------------------------------------
+        # --------------------------------------------------------------------
         # Wireless
-        # ---------------------------------------------------------------------
+        # --------------------------------------------------------------------
         wireless_charge_category, _ = ChargeCategory.get_or_create(
             category='wireless',
             text='Wireless'
