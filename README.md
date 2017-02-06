@@ -147,4 +147,4 @@ Notify (y/n)?
 ```
 If you type `y`, it will call Twilio API to send the message to user 1 @ 415-555-0001 with the extra payment message you inputed upfront. At the mean time, all messages sent are logged in `notif_history.log` file in `att-bill-splitter` directory to help you manage all the history activities.
 
-If for any reason it doesn't work for you, please let me know by either creating an issue or sending me an email at leapingzhang@gmail.com. You'll get my attention very soon.
+I'd like to hear your thoughts.
