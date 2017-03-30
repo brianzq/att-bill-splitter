@@ -13,7 +13,7 @@ This package is written in Python (works with both Python 2 and 3) and uses requ
 ```
 ### via source code
 ```
-[~] git clone https://github.com/brian-ds/att-bill-splitter.git
+[~] git clone https://github.com/brianzq/att-bill-splitter.git
 [~] cd att-bill-splitter
 [att-bill-splitter] pip install .
 ```
