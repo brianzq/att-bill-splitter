@@ -169,7 +169,7 @@ class AttBillSplitter(object):
             params={'actionEvent': 'displayProfileInformation'}
         )
         an_soup = BeautifulSoup(an_req.text, 'html.parser')
-        act_num_tag = an_soup.find('li', class_='account-number')
+        act_num_tag = an_soup.find('span', class_='account-number')
         m = re.search(r'.?(\d+).?', act_num_tag.text, re.DOTALL)
         if not m:
             raise ParsingError('Account number not found!')
