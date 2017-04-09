@@ -72,9 +72,7 @@ By default it parses all your previous bills. If you want to select a few bills 
 
 You can supply multiple ``-l`` options at once.
 
-**Note**:
-
-Once in a while, AT&T would display a popup window (promotion, ads) during login. If detected, you will see an warning message in your teminal requesting you to login your account on your browser, close the popup window, and LOG OUT. Then you can retry splitting your bill with the above command. If you haven't logged in to your account for a while, there might be multiple popup windows queued up in AT&T's system. Each time you will only see one, so you might have to repeat the above process a few times before all popup windows are cleard out.
+**NOTE**: Once in a while, AT&T would display a popup window (promotion, ads) during login. If detected, you will see an warning message in your teminal requesting you to login your account on your browser, close the popup window, and LOG OUT. Then you can retry splitting your bill with the above command. If you haven't logged in to your account for a while, there might be multiple popup windows queued up in AT&T's system. Each time you will only see one, so you might have to repeat the above process a few times before all popup windows are cleard out.
 
 View Monthly Charges Summary for Users
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -83,10 +81,9 @@ After you parsed the bills, you can view them in your terminal. The command belo
 
     [att-bill-splitter] att-print-summary MONTH [year]
 
-``MONTH`` (1-12) refers to the month of the end date of the billing cycle. For example if you want to view billing cycle is Sep 15 - Oct 14, ``MONTH`` should be ``10``. ``year`` (optional) should be 4-digit.
-
-For example,
+``MONTH`` (1-12) refers to the month of the end date of the billing cycle. For example if you want to view billing cycle is Sep 15 - Oct 14, ``MONTH`` should be ``10``. ``year`` (optional) should be 4-digit. For example,
 ::
+
     [att-bill-splitter] att-print-summary 8
 
     --------------------------------------------------------------
@@ -140,7 +137,7 @@ Send Monthly Charge Details to Users via SMS
 
 View each user's monthly charge details (and total) and decide if you want to send it to the user via SMS.
 
-You will be prompt to input your Twilio number, account SID and authentication token. You can get them in a minute for free at www.twilio.com. You will also be asked to input a short message to put at the end of the text messages you send to your users, for instance, to tell your users how to pay you.
+During your first use, you will be prompted to input your Twilio number, account SID and authentication token. You can get them in a minute for free at www.twilio.com. You will also be asked to input a short message to put at the end of the text messages you send to your users, for instance, to tell your users how to pay you. All the info will be saved locally so you don't have to type them in the future, unless you want to update them.
 ::
 
     [att-bill-splitter] att-notify-users MONTH [YEAR]
