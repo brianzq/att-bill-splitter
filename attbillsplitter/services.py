@@ -246,37 +246,44 @@ class MessageClient(object):
 
 @click.command()
 @click.argument('month', type=int)
-@click.option('-y', '--year', type=int)
+@click.option('-y', '--year', type=int,
+              help='Year of the end date of the billing cycle (YYYY)')
 def run_print_summary(month, year):
-    """Print monthly charge summary for each user. MONTH refers to the month
-    of the end date of the billing cycle. It should be an integer from 1 to
-    12. You can also specify YEAR (in 4 digits). By default, YEAR is set to
-    current calendar year.
+    """Print monthly charge summary for each user.
+
+    MONTH refers to the month of the end date of the billing cycle.
+    It should be an integer from 1 to 12. You can also specify --year (YYYY).
+    By default, YEAR is set to current calendar year.
     """
     print_wireless_monthly_summary(month, year)
 
 
 @click.command()
 @click.argument('month', type=int)
-@click.option('-y', '--year', type=int)
+@click.option('-y', '--year', type=int,
+              help='Year of the end date of the billing cycle (YYYY)')
 def run_print_details(month, year):
-    """Print monthly charge details for each user. MONTH refers to the month
-    of the end date of the billing cycle. It should be an integer from 1 to
-    12. You can also specify YEAR (in 4 digits). By default, YEAR is set to
-    current calendar year.
+    """Print monthly charge details for each user.
+
+    MONTH refers to the month of the end date of the billing cycle.
+    It should be an integer from 1 to 12. You can also specify --year (YYYY).
+    By default, YEAR is set to current calendar year.
     """
     print_wireless_monthly_details(month, year)
 
 
 @click.command()
 @click.argument('month', type=int)
-@click.option('-y', '--year', type=int)
+@click.option('-y', '--year', type=int,
+              help='Year of the end date of the billing cycle (YYYY)')
 def run_notify_users(month, year):
-    """Send monthly charge details to each user via SMS. For each user, you
-    will first be shown his charge details, then you can decide whether you
-    want to notify him/her. MONTH refers to the month of the end date of the
-    billing cycle. It should be an integer from 1 to 12. You can also specify
-    YEAR (in 4 digits). By default, YEAR is set to current calendar year.
+    """Send monthly charge details to each user via SMS.
+
+    For each user, you will first be shown his charge details, then you can
+    decide whether you want to notify him/her. MONTH refers to the month of
+    the end date of the billing cycle. It should be an integer from 1 to 12.
+    You can also specify --year (YYYY). By default, YEAR is set to
+    current calendar year.
     """
     mc = MessageClient()
     payment_msg = utils.load_payment_msg()

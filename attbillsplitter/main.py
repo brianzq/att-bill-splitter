@@ -419,16 +419,24 @@ class AttBillSplitter(object):
 
 
 @click.command()
-@click.option('--lag', '-l', multiple=True, type=int)
-@click.option('--force', '-f', default=False)
-@click.option('--username', prompt='\U0001F464  AT&T Username')
+@click.option('--lag', '-l', multiple=True, type=int,
+              help=('Lag of the bill you want to split with respect to '
+                    'current bill. 0 refers to the most recent bill, 1 '
+                    'refers to the bill from previous month. Can be used '
+                    'multiple times.'))
+@click.option('--force', '-f', default=False,
+              help=('Force to split the bill (and save) even if the bill has '
+                    'already been split before.'))
+@click.option('--username', prompt='\U0001F464  AT&T Username',
+              help='Username')
 @click.option('--password', prompt='\U0001F5DD  AT&T Password',
-              hide_input=True)
+              hide_input=True, help='Password')
 def run_split_bill(username, password, lag, force):
+    """Split AT&T wireless bills among lines.
+
+    By default all new (unsplit) bills will be split. If you want to select
+    bills to split, use the --lag (-l) option.
+    """
     create_tables_if_not_exist()
     splitter = AttBillSplitter(username, password)
     splitter.run(lag, force)
-
-
-if __name__ == '__main__':
-    run_split_bill()

@@ -14,14 +14,13 @@ setup(
     # download_url=''
     install_requires=[
         'beautifulsoup4==4.5.1',
-        'click>=6.6',
-        'future>=0.16.0',
-        # 'lxml==3.6.4',
-        'peewee>=2.8.4',
-        'python-slugify>=1.2.1',
+        'click==6.6',
+        'future==0.16.0',
+        'peewee==2.8.4',
+        'python-slugify==1.2.1',
         'requests==2.11.1',
-        'twilio>=5.6.0',
-        'Unidecode>=0.4.19',
+        'twilio==5.6.0',
+        'Unidecode==0.4.19',
     ],
     packages=find_packages(),
     extras_require={
