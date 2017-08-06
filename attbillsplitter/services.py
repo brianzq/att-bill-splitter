@@ -209,7 +209,7 @@ def notify_users_monthly_details(message_client, payment_msg, month,
         print(num)
         print(msg)
         notify = input('Notify (y/n)? ')
-        if notify in ('y', 'Y', 'yes', 'Yes', 'YES'):
+        if notify in ('', 'y', 'Y', 'yes', 'Yes', 'YES'):
             body = '{}\n{}'.format(msg, payment_msg)
             message_client.send_message(body=body, to=num)
             logger.info('%s charge details sent to %s, body:\n%s',
