@@ -18,7 +18,7 @@ setup(
         'future==0.16.0',
         'peewee==2.8.4',
         'python-slugify==1.2.1',
-        'requests==2.11.1',
+        'requests',
         'twilio==5.6.0',
         'Unidecode==0.4.19',
     ],

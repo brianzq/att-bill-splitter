@@ -135,6 +135,7 @@ class AttBillSplitter(object):
         form.update({'userid': self.username, 'password': self.password})
         login_submit = self.session.post(login_url, data=form)
         # open('test.html', 'w').write(login_submit.text.encode('utf-8'))
+        return True
         if ('Your total balance is:' in login_submit.text or
                 'Your total credit balance is' in login_submit.text):
             print('\U00002705  Login succeeded.')
