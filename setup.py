@@ -6,7 +6,7 @@ from setuptools import find_packages, setup
 setup(
     name='att-bill-splitter',
     # packages=['att-bill-splitter'],
-    version='0.3',
+    version='0.4',
     description='Parse AT&T bill and split wireless charges among users.',
     author='Brian Zhang',
     author_email='leapingzhang@gmail.com',
