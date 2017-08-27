@@ -135,12 +135,9 @@ class AttBillSplitter(object):
         form.update({'userid': self.username, 'password': self.password})
         login_submit = self.session.post(login_url, data=form)
         # open('test.html', 'w').write(login_submit.text.encode('utf-8'))
-        return True
-        if ('Your total balance is:' in login_submit.text or
-                'Your total credit balance is' in login_submit.text):
+        if 'Manage your account' in login_submit.text:
             print('\U00002705  Login succeeded.')
             return True
-
         else:
             if 'promo' in login_submit.url.lower():
                 print ('\U0001F534  Popup window detected during login. '
@@ -165,16 +162,25 @@ class AttBillSplitter(object):
             params={'actionType': 'ViewBillHistory'}
         )
         # get account number
+        # an_req = self.session.get(
+        #     'https://www.att.com/olam/acctInfoView.myworld',
+        #     params={'actionEvent': 'displayProfileInformation'}
+        # )
+
+        # TODO: this will go to 'give us a moment cycling' pending page.
         an_req = self.session.get(
-            'https://www.att.com/olam/acctInfoView.myworld',
-            params={'actionEvent': 'displayProfileInformation'}
+            'https://www.att.com/my/#/profileOverview',
         )
         an_soup = BeautifulSoup(an_req.text, 'html.parser')
-        act_num_tag = an_soup.find('span', class_='account-number')
-        m = re.search(r'.?(\d+).?', act_num_tag.text, re.DOTALL)
-        if not m:
-            raise ParsingError('Account number not found!')
-        act_num = m.group(1)
+        # act_num_tag = an_soup.find('span', class_='account-number')
+
+        # m = re.search(r'.?(\d+).?', act_num_tag.text, re.DOTALL)
+        # if not m:
+        #     raise ParsingError('Account number not found!')
+        # act_num = m.group(1)
+
+        # TODO: fix hardcoded account number!
+        act_num = '436091722278'
 
         # now we can get billing history
         bh_req = self.session.get(
@@ -186,7 +192,7 @@ class AttBillSplitter(object):
         bc_tags = bh_soup.find_all('td', headers=['bill_period'])
         bill_link_template = (
             'https://www.att.com/olam/billPrintPreview.myworld?'
-            'fromPage=history&billStatementID={}|{}|T06|V'
+            'fromPage=history&billStatementID={}|{}|T01|W'
         )
         for tag in bc_tags:
             bc_name = tag.contents[0]
