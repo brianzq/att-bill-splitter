@@ -9,6 +9,7 @@ import peewee as pw
 import requests
 from bs4 import BeautifulSoup, Tag
 from slugify import slugify
+
 # import fake_useragent
 from attbillsplitter.errors import ParsingError
 from attbillsplitter.models import (
@@ -155,32 +156,23 @@ class AttBillSplitter(object):
 
         :yields: tuple of billing_cycle name and link to the bill
         """
-
         # this request will add some cookie
         self.session.get(
             'https://www.att.com/olam/passthroughAction.myworld',
             params={'actionType': 'ViewBillHistory'}
         )
-        # get account number
-        # an_req = self.session.get(
-        #     'https://www.att.com/olam/acctInfoView.myworld',
-        #     params={'actionEvent': 'displayProfileInformation'}
-        # )
 
-        # TODO: this will go to 'give us a moment cycling' pending page.
+        # obtain account number from bill detail page
         an_req = self.session.get(
-            'https://www.att.com/my/#/profileOverview',
+            'https://www.att.com/olam/ViewBillDetailsAction.myworld',
         )
-        an_soup = BeautifulSoup(an_req.text, 'html.parser')
-        # act_num_tag = an_soup.find('span', class_='account-number')
-
-        # m = re.search(r'.?(\d+).?', act_num_tag.text, re.DOTALL)
-        # if not m:
-        #     raise ParsingError('Account number not found!')
-        # act_num = m.group(1)
-
-        # TODO: fix hardcoded account number!
-        act_num = '436091722278'
+        act_num_full = re.search('wirelessAccountNumber":"[0-9]+"', an_req.text)
+        try:
+            act_num_str = act_num_full.group(0)
+        except AttributeError as e:
+            print('Something went wrong. Could not find account number from bill detail page.')
+            raise e
+        act_num = re.search('[0-9]+', act_num_str).group(0)
 
         # now we can get billing history
         bh_req = self.session.get(
