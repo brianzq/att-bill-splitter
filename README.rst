@@ -26,6 +26,14 @@ via source code
     [~] cd att-bill-splitter
     [att-bill-splitter] pip install .
 
+**Warning:**
+
+**If your account has Uverse service. This version probably won't work for you. Try**
+
+::
+
+    [~] pip install att-bill-splitter==0.4.0
+
 *I recommend using a virtualenv to isolate all the dependencies of this application from your local packages.*
 
 Quick Start
