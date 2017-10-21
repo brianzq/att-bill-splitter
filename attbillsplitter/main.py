@@ -141,15 +141,26 @@ class AttBillSplitter(object):
             return True
         else:
             if 'promo' in login_submit.url.lower():
-                print ('\U0001F534  Popup window detected during login. '
+                reject_status = self.clickSkipPromo()
+
+                if reject_status == False:
+                    print ('\U0001F534  Popup window detected during login. '
                        'Please login you account in a browser and click '
                        'through. Log out your account before you retry. '
                        '(Sometimes you might have to do this multiple times.')
-                return False
+
+                return reject_status
 
             print('\U0001F6AB  Login failed. Please check your username and '
                   'password and retry. Or something unexpected happened.')
             return False
+
+    def clickSkipPromo(self):
+        reject_promo_link = (
+            'https://www.att.com/olam/rejectPromoUserResponse.myworld',
+        )
+        skip_promo = self.session.get(reject_promo_link, params={'response':'rejected', 'reportActionEvent':'A_LGN_PROMO_DECLINED_SUB'})
+        return skip_promo.status_code == requests.codes.ok
 
     def get_history_bills(self):
         """Get history bills.
