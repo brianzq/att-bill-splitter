@@ -141,15 +141,13 @@ class AttBillSplitter(object):
             return True
         else:
             if 'promo' in login_submit.url.lower():
-                reject_status = self.clickSkipPromo()
-
-                if not reject_status:
+                if not self.click_skip_promo():
                     print ('\U0001F534  Popup window detected during login. '
                        'Please login you account in a browser and click '
                        'through. Log out your account before you retry. '
                        '(Sometimes you might have to do this multiple times.')
-
-                return reject_status
+                    return False
+                return True
 
             print('\U0001F6AB  Login failed. Please check your username and '
                   'password and retry. Or something unexpected happened.')
