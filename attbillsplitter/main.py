@@ -186,14 +186,14 @@ class AttBillSplitter(object):
         # if that fails, we will try the uverse option.
         uverse_url = ('https://www.att.com/olam/acctInfoView.myworld?'
                       'actionEvent=displayProfileInformation')
-        wireless_url='https://www.att.com/olam/viewbilldetailsaction.myworld'
+        wireless_url = 'https://www.att.com/olam/ViewBillDetailsAction.myworld'
         an_req = self.session.get(wireless_url)
-        if an_req.status_code == requests.codes.ok:
+        act_num_full = re.search('wirelessAccountNumber":"[0-9]+"', an_req.text)
+        if act_num_full:
             bill_link_template = (
                 'https://www.att.com/olam/billPrintPreview.myworld?'
                 'fromPage=history&billStatementID={}|{}|T01|W'
             )
-            act_num_full = re.search('wirelessAccountNumber":"[0-9]+"', an_req.text)
             try:
                 act_num_str = act_num_full.group(0)
             except AttributeError as e:
