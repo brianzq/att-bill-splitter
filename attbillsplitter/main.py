@@ -180,16 +180,39 @@ class AttBillSplitter(object):
         )
 
         # obtain account number from bill detail page
-        an_req = self.session.get(
-            'https://www.att.com/olam/ViewBillDetailsAction.myworld',
-        )
-        act_num_full = re.search('wirelessAccountNumber":"[0-9]+"', an_req.text)
-        try:
-            act_num_str = act_num_full.group(0)
-        except AttributeError as e:
-            print('Something went wrong. Could not find account number from bill detail page.')
-            raise e
-        act_num = re.search('[0-9]+', act_num_str).group(0)
+        # seems like for accounts with uverse services, the link to get the account
+        # number is different, so is link to bill.
+        # we first try to get account number assuming you have only wireless service
+        # if that fails, we will try the uverse option.
+        uverse_url = ('https://www.att.com/olam/acctInfoView.myworld?'
+                      'actionEvent=displayProfileInformation')
+        wireless_url='https://www.att.com/olam/viewbilldetailsaction.myworld'
+        an_req = self.session.get(wireless_url)
+        if an_req.status_code == requests.codes.ok:
+            bill_link_template = (
+                'https://www.att.com/olam/billPrintPreview.myworld?'
+                'fromPage=history&billStatementID={}|{}|T01|W'
+            )
+            act_num_full = re.search('wirelessAccountNumber":"[0-9]+"', an_req.text)
+            try:
+                act_num_str = act_num_full.group(0)
+            except AttributeError as e:
+                print('Something went wrong. Could not find account number from bill detail page.')
+                raise ParsingError('Account number not found!')
+            act_num = re.search('[0-9]+', act_num_str).group(0)
+        else:
+            an_req = self.session.get(uverse_url)
+            bill_link_template = (
+                'https://www.att.com/olam/billPrintPreview.myworld?'
+                'fromPage=history&billStatementID={}|{}|T06|V'
+            )
+            an_soup = BeautifulSoup(an_req.text, 'html.parser')
+            act_num_tag = an_soup.find('span', class_='account-number')
+            m = re.search(r'.?(\d+).?', act_num_tag.text, re.DOTALL)
+            if not m:
+                print('Something went wrong. Could not find account number from bill detail page.')
+                raise ParsingError('Account number not found!')
+            act_num = m.group(1)
 
         # now we can get billing history
         bh_req = self.session.get(
@@ -199,10 +222,6 @@ class AttBillSplitter(object):
         bh_req.raise_for_status()
         bh_soup = BeautifulSoup(bh_req.text, 'html.parser')
         bc_tags = bh_soup.find_all('td', headers=['bill_period'])
-        bill_link_template = (
-            'https://www.att.com/olam/billPrintPreview.myworld?'
-            'fromPage=history&billStatementID={}|{}|T01|W'
-        )
         for tag in bc_tags:
             bc_name = tag.contents[0]
             end_date_name = bc_name.split(' - ')[1]

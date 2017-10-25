@@ -26,9 +26,9 @@ via source code
     [~] cd att-bill-splitter
     [att-bill-splitter] pip install .
 
-**Warning:**
+**Update:**
 
-**If your account has Uverse service. This version probably won't work for you. Try**
+**Now it should work for accounts both with and without UVerse services.**
 
 ::
 
