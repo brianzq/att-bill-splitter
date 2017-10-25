@@ -160,7 +160,7 @@ class AttBillSplitter(object):
         :rtype: bool
         """
         reject_promo_link = (
-            'https://www.att.com/olam/rejectPromoUserResponse.myworld',
+            'https://www.att.com/olam/rejectPromoUserResponse.myworld'
         )
         skip_promo = self.session.get(reject_promo_link, params={
             'response': 'rejected',
