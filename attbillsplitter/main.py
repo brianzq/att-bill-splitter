@@ -190,10 +190,7 @@ class AttBillSplitter(object):
         an_req = self.session.get(wireless_url)
         act_num_full = re.search('wirelessAccountNumber":"[0-9]+"', an_req.text)
         if act_num_full:
-            bill_link_template = (
-                'https://www.att.com/olam/billPrintPreview.myworld?'
-                'fromPage=history&billStatementID={}|{}|T01|W'
-            )
+            bill_statement_id_template = '{}|{}|T01|W'
             try:
                 act_num_str = act_num_full.group(0)
             except AttributeError as e:
@@ -202,10 +199,7 @@ class AttBillSplitter(object):
             act_num = re.search('[0-9]+', act_num_str).group(0)
         else:
             an_req = self.session.get(uverse_url)
-            bill_link_template = (
-                'https://www.att.com/olam/billPrintPreview.myworld?'
-                'fromPage=history&billStatementID={}|{}|T06|V'
-            )
+            bill_statement_id_template = '{}|{}|T06|V'
             an_soup = BeautifulSoup(an_req.text, 'html.parser')
             act_num_tag = an_soup.find('span', class_='account-number')
             m = re.search(r'.?(\d+).?', act_num_tag.text, re.DOTALL)
@@ -227,8 +221,8 @@ class AttBillSplitter(object):
             end_date_name = bc_name.split(' - ')[1]
             end_date = dt.datetime.strptime(end_date_name, '%b %d, %Y')
             end_date_str = end_date.strftime('%Y%m%d')
-            bill_link = bill_link_template.format(end_date_str, act_num)
-            yield (bc_name, bill_link)
+            bill_statement_id = bill_statement_id_template.format(end_date_str, act_num)
+            yield (bc_name, bill_statement_id)
 
     def parse_user_info(self, bill_html):
         """Parse the bill to find name and number for each line and create
@@ -251,17 +245,21 @@ class AttBillSplitter(object):
             users.append(user)
         return users
 
-    def split_bill(self, bc_name, bill_link):
+    def split_bill(self, bc_name, bill_statement_id):
         """Parse bill and split wireless charges among users.
 
         Currently not parsing U-Verse charges.
         :param bc_name: billing cycle name
         :type bc_name: str
-        :param bill_link: url to bill
-        :type bc_name: str
+        :param bill_statement_id: bill statement id, used in link
+        :type bill_statement_id: str
         :returns: None
         """
-        bill_req = self.session.get(bill_link)
+        bill_link_template = (
+            'https://www.att.com/olam/billPrintPreview.myworld?'
+            'fromPage=history&billStatementID={}'
+        )
+        bill_req = self.session.get(bill_link_template.format(bill_statement_id))
         bill_html = bill_req.text
         if 'Account Details' not in bill_html:
             raise ParsingError('Failed to retrieve billing page')
@@ -291,6 +289,15 @@ class AttBillSplitter(object):
         # charge section starts with user name followed by his/her number
         target = soup.find('div',
                            string=re.compile('{} {}'.format(name, number)))
+        # fetch data usage in case there is an overage
+        usage_req = self.session.post(
+            'https://www.att.com/olam/billUsageTiles.myworld',
+            data={'billStatementID': bill_statement_id}
+        )
+        usage_soup = BeautifulSoup(usage_req.text, 'html.parser')
+        overages = {}
+        overage_charge_type_name = 'data-text-usage-charges'
+        overage_charge_type_text = 'Data & Text Usage Charges'
         for tag in target.parent.next_siblings:
             # all charge data are in divs
             if not isinstance(tag, Tag) or tag.name != 'div':
@@ -324,23 +331,32 @@ class AttBillSplitter(object):
                     tag.text,
                     flags=re.DOTALL
                 )
-                charge_total = float(m.group(1)) - offset
-                # save data to db
                 charge_type_name = slugify(charge_type_text)
-                # ChargeType
-                charge_type, _ = ChargeType.get_or_create(
-                    type=charge_type_name,
-                    text=charge_type_text,
-                    charge_category=wireless_charge_category
-                )
-                # Charge
-                new_charge = Charge(
-                    user=account_holder,
-                    charge_type=charge_type,
-                    billing_cycle=billing_cycle,
-                    amount=charge_total
-                )
-                new_charge.save()
+
+                # check if it's a data overage which needs to be shared proportionaly
+                if charge_type_name == overage_charge_type_name:
+                    total_overage_charge = float(m.group(1))
+                    user_tag = usage_soup.find('p', string=re.compile(account_holder.name))
+                    usage_tag = list(user_tag.parent.parent.parent.next_siblings)[1]
+                    usage = float(usage_tag.findChild('strong').text)
+                    overages[account_holder] = usage - 3.0
+                else:
+                    charge_total = float(m.group(1)) - offset
+                    # save data to db
+                    # ChargeType
+                    charge_type, _ = ChargeType.get_or_create(
+                        type=charge_type_name,
+                        text=charge_type_text,
+                        charge_category=wireless_charge_category
+                    )
+                    # Charge
+                    new_charge = Charge(
+                        user=account_holder,
+                        charge_type=charge_type,
+                        billing_cycle=billing_cycle,
+                        amount=charge_total
+                    )
+                    new_charge.save()
                 offset = 0.0
 
         # iterate regular users
@@ -389,6 +405,18 @@ class AttBillSplitter(object):
                     new_charge.save()
             if charge_total > 0:
                 charged_users.append(user)
+            charge_type, _ = ChargeType.get_or_create(
+                type='data-text-usage-charges',
+                text='Data & Text Usage Charges',
+                charge_category=wireless_charge_category
+            )
+            # data overage charge
+            user_tag = usage_soup.find('p', string=re.compile(user.name))
+            if user_tag:
+                usage_tag = list(user_tag.parent.parent.parent.next_siblings)[1]
+                usage = float(usage_tag.findChild('strong').text)
+                if usage > 3.0:
+                    overages[user] = usage - 3.0
 
         # update share of account monthly charges for each user
         # also calculate total wireless charges (for verification later)
@@ -421,6 +449,23 @@ class AttBillSplitter(object):
             )
             wireless_total += user_total[0].total
 
+        total_overage = sum(overages.values())
+        for user, overage in overages.iteritems():
+            overage_charge = overage / total_overage * total_overage_charge
+            print('user {} over used {} GB data, will be charged {}'.format(user.name, overage, overage_charge))
+            charge_type, _ = ChargeType.get_or_create(
+                type=overage_charge_type_name,
+                text=overage_charge_type_text,
+                charge_category=wireless_charge_category
+            )
+            # Charge
+            new_charge = Charge(
+                user=user,
+                charge_type=charge_type,
+                billing_cycle=billing_cycle,
+                amount=overage_charge
+            )
+            new_charge.save()
         # aggregate
         aggregate_wireless_monthly(billing_cycle)
 
@@ -435,7 +480,7 @@ class AttBillSplitter(object):
         if not self.login():
             return
 
-        for i, (bc_name, bill_link) in enumerate(self.get_history_bills()):
+        for i, (bc_name, bill_statement_id) in enumerate(self.get_history_bills()):
             # if lag is not empty, only split bills specified
             if lag and (i not in lag) and not force:
                 continue
@@ -449,7 +494,7 @@ class AttBillSplitter(object):
                 continue
 
             print('\U0001F3C3  Start splitting bill {}...'.format(bc_name))
-            self.split_bill(bc_name, bill_link)
+            self.split_bill(bc_name, bill_statement_id)
             print('\U0001F3C1  Finished splitting bill {}.'.format(bc_name))
 
 
