@@ -295,7 +295,7 @@ class AttBillSplitter(object):
             data={'billStatementID': bill_statement_id}
         )
         usage_soup = BeautifulSoup(usage_req.text, 'html.parser')
-        overages = {}
+        usages = {}
         overage_charge_type_name = 'data-text-usage-charges'
         overage_charge_type_text = 'Data & Text Usage Charges'
         for tag in target.parent.next_siblings:
@@ -339,7 +339,10 @@ class AttBillSplitter(object):
                     user_tag = usage_soup.find('p', string=re.compile(account_holder.name))
                     usage_tag = list(user_tag.parent.parent.parent.next_siblings)[1]
                     usage = float(usage_tag.findChild('strong').text)
-                    overages[account_holder] = usage - 3.0
+                    usages[account_holder] = usage
+                    total_data_allowance =  float(
+                        list(usage_tag.findChild('strong').next_siblings)[-1].split()[0]
+                    )
                 else:
                     charge_total = float(m.group(1)) - offset
                     # save data to db
@@ -410,13 +413,12 @@ class AttBillSplitter(object):
                 text='Data & Text Usage Charges',
                 charge_category=wireless_charge_category
             )
-            # data overage charge
+            # data usages
             user_tag = usage_soup.find('p', string=re.compile(user.name))
             if user_tag:
                 usage_tag = list(user_tag.parent.parent.parent.next_siblings)[1]
                 usage = float(usage_tag.findChild('strong').text)
-                if usage > 3.0:
-                    overages[user] = usage - 3.0
+                usages[user] = usage
 
         # update share of account monthly charges for each user
         # also calculate total wireless charges (for verification later)
@@ -449,10 +451,14 @@ class AttBillSplitter(object):
             )
             wireless_total += user_total[0].total
 
+        user_share = total_data_allowance / len(charged_users)
+        overages = {k: v - user_share for k, v in usages.iteritems() if v > user_share}
         total_overage = sum(overages.values())
         for user, overage in overages.iteritems():
             overage_charge = overage / total_overage * total_overage_charge
-            print('user {} over used {} GB data, will be charged {}'.format(user.name, overage, overage_charge))
+            print('User {} over used {} GB data, will be charged extra ${:.2f}'.format(
+                user.name, overage, overage_charge)
+            )
             charge_type, _ = ChargeType.get_or_create(
                 type=overage_charge_type_name,
                 text=overage_charge_type_text,
