@@ -10,6 +10,7 @@ import click
 import peewee as pw
 import warnings
 import attbillsplitter.utils as utils
+from slugify import slugify
 from twilio.rest import TwilioRestClient
 from twilio.exceptions import TwilioException
 from attbillsplitter.models import (
@@ -288,3 +289,23 @@ def run_notify_users(month, year):
     mc = MessageClient()
     payment_msg = utils.load_payment_msg()
     notify_users_monthly_details(mc, payment_msg, month, year)
+
+
+@click.command()
+@click.argument('amount', type=float)
+@click.argument('charge_name', type=str)
+def add_onetime_fee(amount, charge_name):
+    """Add one time charge to all users. For example, we can use this to add
+    a $2 annual Twilio fee"""
+    charge_type = slugify(charge_name)
+    ct = ChargeType.create(type=charge_type,
+                           text=charge_name,
+                           charge_category=1)
+    ct.save()
+    bc = BillingCycle.select().order_by(BillingCycle.id.desc()).get()
+
+    with db.atomic():
+        for user in User.select():
+            Charge.create(user=user, charge_type=ct, billing_cycle=bc,
+                          amount=amount).save()
+            print('{} {} added for user {}'.format(amount, charge_name, user.name))

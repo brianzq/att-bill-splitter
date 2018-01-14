@@ -28,6 +28,12 @@ def notify_users():
     run_notify_users()
 
 
+def add_onetime_fee():
+    """Add one time fee to all users in most recent billing cycle"""
+    from attbillsplitter.services import add_onetime_fee
+    add_onetime_fee()
+
+
 def init_twilio():
     """Initialize twilio credentials."""
     from attbillsplitter.utils import initialize_twiolio

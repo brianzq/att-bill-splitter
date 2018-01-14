@@ -34,6 +34,7 @@ setup(
             'att-print-summary=attbillsplitter.entrypoints:print_summary',
             'att-print-details=attbillsplitter.entrypoints:print_details',
             'att-notify-users=attbillsplitter.entrypoints:notify_users',
+            'att-add-onetime-fee=attbillsplitter.entrypoints:add_onetime_fee',
             'att-init-twilio=attbillsplitter.entrypoints:init_twilio',
             'att-init-payment-msg=attbillsplitter.entrypoints:init_payment_msg'
         ],
