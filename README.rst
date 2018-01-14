@@ -26,14 +26,6 @@ via source code
     [~] cd att-bill-splitter
     [att-bill-splitter] pip install .
 
-**Update:**
-
-**Now it should work for accounts both with and without UVerse services.**
-
-::
-
-    [~] pip install att-bill-splitter==0.4.0
-
 *I recommend using a virtualenv to isolate all the dependencies of this application from your local packages.*
 
 Quick Start
@@ -80,7 +72,21 @@ By default it parses all your previous bills. If you want to select a few bills 
 
 You can supply multiple ``-l`` options at once.
 
-**NOTE**: Once in a while, AT&T would display a popup window (promotion, ads) during login. If detected, you will see an warning message in your teminal requesting you to login your account on your browser, close the popup window, and LOG OUT. Then you can retry splitting your bill with the above command. If you haven't logged in to your account for a while, there might be multiple popup windows queued up in AT&T's system. Each time you will only see one, so you might have to repeat the above process a few times before all popup windows are cleard out.
+**NOTE**: If your users overused your plan's data, you will probably get charged $15 for each additional Gigabyte like I do. When that happens, the charges for the additional data usage are split among user who used more than their monthly share (monthly_total_allowance / number_of_user), proportionally to the extra amount used. The details will be printed when you run above command, like this:
+
+::
+
+    [att-bill-splitter] att-split-bill -l 0
+    👤  AT&T Username: your_att_username
+    🗝  AT&T Password:
+    ▶  Login started...
+    ✅  Login succeeded.
+    🏃  Start splitting bill Sep 15 - Oct 14, 2016...
+    User USER_NAME_1 over used 0.1 GB data, will be charged extra $0.68
+    User USER_NAME_3 over used 0.69 GB data, will be charged extra $4.70
+    User USER_NAME_4 over used 0.3 GB data, will be charged extra $2.06
+    User USER_NAME_7 over used 3.31 GB data, will be charged extra $22.57
+    🏁  Finished splitting bill Sep 15 - Oct 14, 2016.
 
 View Monthly Charges Summary for Users
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
