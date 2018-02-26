@@ -275,7 +275,8 @@ class AttBillSplitter(object):
         if not users:
             return
 
-        account_holder = users[0]
+        account_holder_name = soup.find('span', class_='hidden-spoken ng-binding').parent.next_sibling.next_sibling.text.strip()
+        account_holder = [user for user in users if user.name == account_holder_name][0]
         # --------------------------------------------------------------------
         # Wireless
         # --------------------------------------------------------------------
@@ -283,7 +284,7 @@ class AttBillSplitter(object):
             category='wireless',
             text='Wireless'
         )
-        charged_users = users[:1]
+        charged_users = [account_holder]
         name, number = account_holder.name, account_holder.number
         offset = 0.0
         # charge section starts with user name followed by his/her number
@@ -298,6 +299,7 @@ class AttBillSplitter(object):
         usages = {}
         overage_charge_type_name = 'data-text-usage-charges'
         overage_charge_type_text = 'Data & Text Usage Charges'
+        data_overused = False
         for tag in target.parent.next_siblings:
             # all charge data are in divs
             if not isinstance(tag, Tag) or tag.name != 'div':
@@ -335,6 +337,7 @@ class AttBillSplitter(object):
 
                 # check if it's a data overage which needs to be shared proportionaly
                 if charge_type_name == overage_charge_type_name:
+                    data_overused = True
                     total_overage_charge = float(m.group(1))
                     user_tag = usage_soup.find('p', string=re.compile(account_holder.name))
                     usage_tag = list(user_tag.parent.parent.parent.next_siblings)[1]
@@ -363,7 +366,8 @@ class AttBillSplitter(object):
                 offset = 0.0
 
         # iterate regular users
-        for user in users[1:]:
+        remaining_users = [u for u in users if u.number != number]
+        for user in remaining_users:
             charge_total = 0.0
             name, number = user.name, user.number
             # charge section starts with user name followed by his/her number
@@ -451,27 +455,28 @@ class AttBillSplitter(object):
             )
             wireless_total += user_total[0].total
 
-        user_share = total_data_allowance / len(charged_users)
-        overages = {k: v - user_share for k, v in usages.iteritems() if v > user_share}
-        total_overage = sum(overages.values())
-        for user, overage in overages.iteritems():
-            overage_charge = overage / total_overage * total_overage_charge
-            print('User {} over used {} GB data, will be charged extra ${:.2f}'.format(
-                user.name, overage, overage_charge)
-            )
-            charge_type, _ = ChargeType.get_or_create(
-                type=overage_charge_type_name,
-                text=overage_charge_type_text,
-                charge_category=wireless_charge_category
-            )
-            # Charge
-            new_charge = Charge(
-                user=user,
-                charge_type=charge_type,
-                billing_cycle=billing_cycle,
-                amount=overage_charge
-            )
-            new_charge.save()
+        if data_overused:
+            user_share = total_data_allowance / len(charged_users)
+            overages = {k: v - user_share for k, v in usages.iteritems() if v > user_share}
+            total_overage = sum(overages.values())
+            for user, overage in overages.iteritems():
+                overage_charge = overage / total_overage * total_overage_charge
+                print('User {} over used {} GB data, will be charged extra ${:.2f}'.format(
+                    user.name, overage, overage_charge)
+                )
+                charge_type, _ = ChargeType.get_or_create(
+                    type=overage_charge_type_name,
+                    text=overage_charge_type_text,
+                    charge_category=wireless_charge_category
+                )
+                # Charge
+                new_charge = Charge(
+                    user=user,
+                    charge_type=charge_type,
+                    billing_cycle=billing_cycle,
+                    amount=overage_charge
+                )
+                new_charge.save()
         # aggregate
         aggregate_wireless_monthly(billing_cycle)
 
