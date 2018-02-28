@@ -65,7 +65,8 @@ def aggregate_wireless_monthly(bc):
     :returns: None
     """
     if MonthlyBill.select().where(MonthlyBill.billing_cycle == bc).exists():
-        print('\U000026A0  Charges already aggregated for {}'.format(bc.name))
+        print('\U000026A0  Charges already aggregated for {}'.format(
+            bc.name).encode("utf-8"))
         return
 
     query = (
@@ -107,7 +108,7 @@ class AttBillSplitter(object):
         :returns: status of the login (True or False)
         :rtype: bool
         """
-        print('\U000025B6  Login started...')
+        print('\U000025B6  Login started...'.encode("utf-8"))
         login_url = (
             'https://myattdx05.att.com/commonLogin/igate_wam/multiLogin.do'
         )
@@ -137,20 +138,20 @@ class AttBillSplitter(object):
         login_submit = self.session.post(login_url, data=form)
         # open('test.html', 'w').write(login_submit.text.encode('utf-8'))
         if 'Manage your account' in login_submit.text:
-            print('\U00002705  Login succeeded.')
+            print('\U00002705  Login succeeded.'.encode("utf-8"))
             return True
         else:
             if 'promo' in login_submit.url.lower():
                 if not self.click_skip_promo():
                     print ('\U0001F534  Popup window detected during login. '
-                       'Please login you account in a browser and click '
-                       'through. Log out your account before you retry. '
-                       '(Sometimes you might have to do this multiple times.')
+                           'Please login you account in a browser and click '
+                           'through. Log out your account before you retry. '
+                           '(Sometimes you might have to do this multiple times.'.encode("utf-8"))
                     return False
                 return True
 
             print('\U0001F6AB  Login failed. Please check your username and '
-                  'password and retry. Or something unexpected happened.')
+                  'password and retry. Or something unexpected happened.'.encode("utf-8"))
             return False
 
     def click_skip_promo(self):
@@ -188,13 +189,15 @@ class AttBillSplitter(object):
                       'actionEvent=displayProfileInformation')
         wireless_url = 'https://www.att.com/olam/ViewBillDetailsAction.myworld'
         an_req = self.session.get(wireless_url)
-        act_num_full = re.search('wirelessAccountNumber":"[0-9]+"', an_req.text)
+        act_num_full = re.search(
+            'wirelessAccountNumber":"[0-9]+"', an_req.text)
         if act_num_full:
             bill_statement_id_template = '{}|{}|T01|W'
             try:
                 act_num_str = act_num_full.group(0)
             except AttributeError as e:
-                print('Something went wrong. Could not find account number from bill detail page.')
+                print(
+                    'Something went wrong. Could not find account number from bill detail page.')
                 raise ParsingError('Account number not found!')
             act_num = re.search('[0-9]+', act_num_str).group(0)
         else:
@@ -204,7 +207,8 @@ class AttBillSplitter(object):
             act_num_tag = an_soup.find('span', class_='account-number')
             m = re.search(r'.?(\d+).?', act_num_tag.text, re.DOTALL)
             if not m:
-                print('Something went wrong. Could not find account number from bill detail page.')
+                print(
+                    'Something went wrong. Could not find account number from bill detail page.')
                 raise ParsingError('Account number not found!')
             act_num = m.group(1)
 
@@ -221,7 +225,8 @@ class AttBillSplitter(object):
             end_date_name = bc_name.split(' - ')[1]
             end_date = dt.datetime.strptime(end_date_name, '%b %d, %Y')
             end_date_str = end_date.strftime('%Y%m%d')
-            bill_statement_id = bill_statement_id_template.format(end_date_str, act_num)
+            bill_statement_id = bill_statement_id_template.format(
+                end_date_str, act_num)
             yield (bc_name, bill_statement_id)
 
     def parse_user_info(self, bill_html):
@@ -259,7 +264,8 @@ class AttBillSplitter(object):
             'https://www.att.com/olam/billPrintPreview.myworld?'
             'fromPage=history&billStatementID={}'
         )
-        bill_req = self.session.get(bill_link_template.format(bill_statement_id))
+        bill_req = self.session.get(
+            bill_link_template.format(bill_statement_id))
         bill_html = bill_req.text
         if 'Account Details' not in bill_html:
             raise ParsingError('Failed to retrieve billing page')
@@ -275,8 +281,10 @@ class AttBillSplitter(object):
         if not users:
             return
 
-        account_holder_name = soup.find('span', class_='hidden-spoken ng-binding').parent.next_sibling.next_sibling.text.strip()
-        account_holder = [user for user in users if user.name == account_holder_name][0]
+        account_holder_name = soup.find(
+            'span', class_='hidden-spoken ng-binding').parent.next_sibling.next_sibling.text.strip()
+        account_holder = [
+            user for user in users if user.name == account_holder_name][0]
         # --------------------------------------------------------------------
         # Wireless
         # --------------------------------------------------------------------
@@ -339,12 +347,15 @@ class AttBillSplitter(object):
                 if charge_type_name == overage_charge_type_name:
                     data_overused = True
                     total_overage_charge = float(m.group(1))
-                    user_tag = usage_soup.find('p', string=re.compile(account_holder.name))
-                    usage_tag = list(user_tag.parent.parent.parent.next_siblings)[1]
+                    user_tag = usage_soup.find(
+                        'p', string=re.compile(account_holder.name))
+                    usage_tag = list(
+                        user_tag.parent.parent.parent.next_siblings)[1]
                     usage = float(usage_tag.findChild('strong').text)
                     usages[account_holder] = usage
-                    total_data_allowance =  float(
-                        list(usage_tag.findChild('strong').next_siblings)[-1].split()[0]
+                    total_data_allowance = float(
+                        list(usage_tag.findChild(
+                            'strong').next_siblings)[-1].split()[0]
                     )
                 else:
                     charge_total = float(m.group(1)) - offset
@@ -420,7 +431,8 @@ class AttBillSplitter(object):
             # data usages
             user_tag = usage_soup.find('p', string=re.compile(user.name))
             if user_tag:
-                usage_tag = list(user_tag.parent.parent.parent.next_siblings)[1]
+                usage_tag = list(
+                    user_tag.parent.parent.parent.next_siblings)[1]
                 usage = float(usage_tag.findChild('strong').text)
                 usages[user] = usage
 
@@ -457,7 +469,8 @@ class AttBillSplitter(object):
 
         if data_overused:
             user_share = total_data_allowance / len(charged_users)
-            overages = {k: v - user_share for k, v in usages.iteritems() if v > user_share}
+            overages = {k: v - user_share for k,
+                        v in usages.iteritems() if v > user_share}
             total_overage = sum(overages.values())
             for user, overage in overages.iteritems():
                 overage_charge = overage / total_overage * total_overage_charge
@@ -501,12 +514,14 @@ class AttBillSplitter(object):
                     BillingCycle.name == bc_name
             ):
                 print('\U000026A0  Billing Cycle {} already '
-                      'processed.'.format(bc_name))
+                      'processed.'.format(bc_name).encode("utf-8"))
                 continue
 
-            print('\U0001F3C3  Start splitting bill {}...'.format(bc_name))
+            print('\U0001F3C3  Start splitting bill {}...'.format(
+                bc_name).encode("utf-8"))
             self.split_bill(bc_name, bill_statement_id)
-            print('\U0001F3C1  Finished splitting bill {}.'.format(bc_name))
+            print('\U0001F3C1  Finished splitting bill {}.'.format(
+                bc_name).encode("utf-8"))
 
 
 @click.command()
