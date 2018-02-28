@@ -30,7 +30,7 @@ def initialize_twiolio():
     config = configparser.ConfigParser()
     config.read(CONFIG_PATH)
     if config.remove_section('twilio'):
-        print('\U00002B55  Old twilio credentials removed.')
+        print('\U00002B55  Old twilio credentials removed.'.encode("utf-8"))
 
     config.add_section('twilio')
     config.set('twilio', 'number', number)
@@ -38,7 +38,7 @@ def initialize_twiolio():
     config.set('twilio', 'auth_token', auth_token)
     with open(CONFIG_PATH, 'w') as configfile:
         config.write(configfile)
-    print('\U00002705  New twilio account added.')
+    print('\U00002705  New twilio account added.'.encode("utf-8"))
 
 
 def load_twilio_config():
@@ -73,12 +73,12 @@ def initialize_payment_msg():
     config = configparser.ConfigParser()
     config.read(CONFIG_PATH)
     if config.remove_section('message'):
-        print('\U00002B55  Old payment message removed.')
+        print('\U00002B55  Old payment message removed.'.encode("utf-8"))
     config.add_section('message')
     config.set('message', 'payment', message)
     with open(CONFIG_PATH, 'w') as configfile:
         config.write(configfile)
-    print('\U00002705  New payment message saved.')
+    print('\U00002705  New payment message saved.'.encode("utf-8"))
 
 
 def load_payment_msg():

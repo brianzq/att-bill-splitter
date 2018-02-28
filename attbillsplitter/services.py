@@ -215,7 +215,7 @@ def notify_users_monthly_details(message_client, payment_msg, month,
             message_client.send_message(body=body, to=num)
             logger.info('%s charge details sent to %s, body:\n%s',
                         bc.name, num, msg)
-            print('\U00002705  Message sent to {}\n'.format(num))
+            print('\U00002705  Message sent to {}\n'.format(num).encode("utf-8"))
 
 
 class MessageClient(object):
@@ -227,7 +227,7 @@ class MessageClient(object):
             self.twilio_client = TwilioRestClient(account_sid, auth_token)
         except TwilioException:
             print('\U0001F6AB  Current twilio credentials invalid. '
-                  'Please reset.')
+                  'Please reset.'.encode("utf-8"))
             utils.initialize_twiolio()
             number, account_sid, auth_token = utils.load_twilio_config()
             self.number = number
