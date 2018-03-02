@@ -2,6 +2,7 @@
 """Main module"""
 
 from __future__ import print_function, unicode_literals
+from builtins import input
 import datetime as dt
 import re
 import click
@@ -281,10 +282,15 @@ class AttBillSplitter(object):
         if not users:
             return
 
-        account_holder_name = soup.find(
-            'span', class_='hidden-spoken ng-binding').parent.next_sibling.next_sibling.text.strip()
-        account_holder = [
-            user for user in users if user.name == account_holder_name][0]
+        message = 'Choose account holder\'s number\n'
+        for i, user in enumerate(users):
+            message += '{}: {}\n'.format(i, user.number)
+    
+        ind = input(message + '> ')
+        try:
+            account_holder = users[int(ind)]
+        except:
+            print('You have to input a number from 0 to {}'.format(len(users) - 1))
         # --------------------------------------------------------------------
         # Wireless
         # --------------------------------------------------------------------
