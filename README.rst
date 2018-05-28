@@ -185,3 +185,4 @@ For example,
 If you type ``y``, it will call Twilio API to send the message to user 1 @ 415-555-0001 with the extra payment message you inputed upfront. At the mean time, all messages sent are logged in ``notif_history.log`` file in ``att-bill-splitter`` directory to help you manage all the history activities.
 
 I'd like to hear your thoughts. You can `join our slack channel <https://join.slack.com/t/att-bill-splitter/shared_invite/enQtMjk5Mzc4NTQ4ODY5LWRmMWQzYjM2MWFmYzE1NjY1N2MzOTkyZGJhNDMzNGJjOWFhNzI4OTRkZTg4MmM3YzY0YzMwODMxZTI4NGYzZDI>`_ if you have any questions or just want to say hi.
+
