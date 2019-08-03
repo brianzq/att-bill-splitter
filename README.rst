@@ -1,10 +1,8 @@
-THIS PROJECT IS NO LONGER MAINTAINED!
--------------------------------------
+**THIS PROJECT IS NO LONGER MAINTAINED!**
 
-**My original goal with this project was to automate the whole process of splitting AT&T family plan bills including the login, parsing, storage and SMS notification to each line, which now I found not realistic or maintainable because AT&T was updating their login process or bill format every few months. With this learning, now I use a hybrid approach which requires me to manually login, download the pdf bills, and copy some of the line items into a txt file, which is then parsed by a python script. Despite some manual effort, the total process takes less then 2 mins and I never have to update the script since it was first written more than a year ago.**
+My original goal with this project was to automate the whole process of splitting AT&T family plan bills including the login, parsing, storage and SMS notification to each line, which now I found not realistic or maintainable because AT&T was updating their login process or bill format every few months. With this learning, now I use a hybrid approach which requires me to manually login, download the pdf bills, and copy some of the line items into a txt file, which is then parsed by a python script. Despite some manual effort, the total process takes less then 2 mins and I never have to update the script since it was first written more than a year ago.
 
-**I used a private repo for the new script so that I could upload all the raw and parsed data there. Drop me a line if you want to give it a try.**
-
+I used a private repo for the new script so that I could upload all the raw and parsed data there. Drop me a line if you want to give it a try.
 
 att-bill-splitter
 =================
