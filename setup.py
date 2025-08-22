@@ -15,7 +15,7 @@ setup(
     install_requires=[
         'beautifulsoup4==4.5.1',
         'click==6.6',
-        'future==0.16.0',
+        'future==1.0.0',
         'peewee==2.8.4',
         'python-slugify==1.2.1',
         'requests',
